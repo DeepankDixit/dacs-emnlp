@@ -1,0 +1,50 @@
+# =============================================================================
+# DACS Research Project — .gitignore
+# =============================================================================
+# Track: code/ only
+# Ignore: large model outputs, results, images, secrets
+
+# ── Large model outputs (never commit — tens of GB) ──────────────────────────
+outputs/
+results/
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# ── HuggingFace cache ─────────────────────────────────────────────────────────
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# ── Secrets and tokens ────────────────────────────────────────────────────────
+.env
+*.env
+secrets.txt
+hf_token.txt
+
+# ── OS and editor clutter ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# ── Documentation (large docx/pptx/md files — tracked separately if needed) ──
+documentation/
+images/
+
+# ── Jupyter notebooks (too noisy for git — use scripts) ─────────────────────
+*.ipynb
+.ipynb_checkpoints/
+
+# ── Eval harness clones (install fresh on each GPU instance) ─────────────────
+PurpleLlama/
+MedQA/
+
+# ── Temporary files ───────────────────────────────────────────────────────────
+*.tmp
+*.log
+/tmp/
