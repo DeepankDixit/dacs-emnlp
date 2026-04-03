@@ -48,3 +48,4 @@ MedQA/
 *.tmp
 *.log
 /tmp/
+data/cybersec_sft_train.jsonl
