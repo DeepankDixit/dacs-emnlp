@@ -92,30 +92,62 @@ def main():
     print("   d) Rescale: W' = W × m_i,  A' = A / m_i  (mathematically equivalent)")
     print("   e) Both W' and A' now have smaller ranges → quantize both to INT8")
 
+    # ── Backend selection ──────────────────────────────────────────────────────
+    # Priority 1: nvidia-modelopt (preferred — requires torch>=2.6)
+    # Priority 2: smoothquant library (MIT-Han-Lab, pip install smoothquant)
+    # If both fail, abort with clear instructions.
+    # ──────────────────────────────────────────────────────────────────────────
+
+    backend_used = None
+
+    # ── Try ModelOpt ──────────────────────────────────────────────────────────
     try:
         import modelopt.torch.quantization as mtq
-
-        # INT8 SmoothQuant config from ModelOpt
-        quant_cfg = mtq.INT8_SMOOTHQUANT_CFG
+        # Smoke-test the specific attribute we need before committing
+        _ = mtq.INT8_SMOOTHQUANT_CFG
 
         def forward_loop(model):
-            """Run calibration forward passes to collect activation statistics."""
             with torch.no_grad():
                 model(**inputs)
 
-        print("  Using ModelOpt backend...")
-        mtq.quantize(model, quant_cfg, forward_loop=forward_loop)
+        print("  Using ModelOpt backend (nvidia-modelopt)...")
+        mtq.quantize(model, quant_cfg=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=forward_loop)
+        backend_used = "modelopt"
+        print("  ModelOpt INT8 W8A8 quantization applied.")
 
-    except ImportError:
-        print("  ModelOpt not available. Trying smoothquant fallback...")
+    except (ImportError, AttributeError) as e:
+        print(f"  ModelOpt not usable ({e}). Trying smoothquant fallback...")
+
+    # ── Try smoothquant (MIT-Han-Lab) ─────────────────────────────────────────
+    if backend_used is None:
         try:
+            from smoothquant.calibration import get_act_scales
             from smoothquant.smooth import smooth_lm
-            smooth_lm(model, inputs, alpha=0.5)
-            print("  SmoothQuant migration applied (alpha=0.5)")
-        except ImportError:
-            print("  ERROR: Neither modelopt nor smoothquant is installed.")
-            print("  Run: pip install nvidia-modelopt[torch]")
-            sys.exit(1)
+
+            print("  Using smoothquant backend (MIT-Han-Lab)...")
+            # smoothquant needs per-channel activation scales, not raw inputs
+            act_scales = get_act_scales(
+                model, tokenizer, calib_texts,
+                num_samples=N_CALIB, seq_len=MAX_LENGTH,
+            )
+            smooth_lm(model, act_scales, alpha=0.5)
+            backend_used = "smoothquant"
+            print("  SmoothQuant migration applied (alpha=0.5).")
+
+        except (ImportError, Exception) as e:
+            print(f"  smoothquant fallback failed: {e}")
+
+    # ── Neither worked ────────────────────────────────────────────────────────
+    if backend_used is None:
+        print()
+        print("  ERROR: Could not apply SmoothQuant — neither backend worked.")
+        print()
+        print("  Root cause: nvidia-modelopt requires torch>=2.6 but you have", torch.__version__)
+        print()
+        print("  Fix — upgrade torch FIRST, then re-run this script:")
+        print("    pip install 'torch>=2.6.0' --index-url https://download.pytorch.org/whl/cu124")
+        print("    python code/activity2a_sq_c1.py")
+        sys.exit(1)
 
     # Save quantized model
     print(f"\n  Saving INT8 SmoothQuant C1 model to {OUTPUT_PATH}...")

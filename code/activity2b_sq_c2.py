@@ -54,19 +54,36 @@ def main():
     inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
     print(f"\n[4/4] Running SmoothQuant (C2 self-generated calibration data)...")
+    backend_used = None
+
     try:
         import modelopt.torch.quantization as mtq
+        _ = mtq.INT8_SMOOTHQUANT_CFG
         def forward_loop(m):
             with torch.no_grad():
                 m(**inputs)
-        mtq.quantize(model, mtq.INT8_SMOOTHQUANT_CFG, forward_loop=forward_loop)
-    except ImportError:
+        print("  Using ModelOpt backend...")
+        mtq.quantize(model, quant_cfg=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=forward_loop)
+        backend_used = "modelopt"
+    except (ImportError, AttributeError) as e:
+        print(f"  ModelOpt not usable ({e}). Trying smoothquant fallback...")
+
+    if backend_used is None:
         try:
+            from smoothquant.calibration import get_act_scales
             from smoothquant.smooth import smooth_lm
-            smooth_lm(model, inputs, alpha=0.5)
-        except ImportError:
-            print("ERROR: Install nvidia-modelopt[torch]")
-            sys.exit(1)
+            act_scales = get_act_scales(model, tokenizer, calib_texts,
+                                        num_samples=len(calib_texts), seq_len=512)
+            smooth_lm(model, act_scales, alpha=0.5)
+            backend_used = "smoothquant"
+            print("  SmoothQuant migration applied (alpha=0.5).")
+        except (ImportError, Exception) as e:
+            print(f"  smoothquant fallback failed: {e}")
+
+    if backend_used is None:
+        print(f"\n  ERROR: Could not apply SmoothQuant. torch version: {torch.__version__}")
+        print("  Fix: pip install 'torch>=2.6.0' --index-url https://download.pytorch.org/whl/cu124")
+        sys.exit(1)
 
     model.save_pretrained(OUTPUT_PATH)
     tokenizer.save_pretrained(OUTPUT_PATH)
