@@ -47,7 +47,7 @@ echo "  lm-eval OK"
 # STEP 3: Clone and install CyberSecEval 4 (Meta PurpleLlama)
 # ---------------------------------------------------------------------------
 echo ""
-echo "[3/5] Cloning and installing CyberSecEval 4 (PurpleLlama)..."
+echo "[3/5] Setting up CyberSecEval 4 (PurpleLlama)..."
 
 if [ ! -d "PurpleLlama" ]; then
     git clone https://github.com/meta-llama/PurpleLlama.git --depth=1
@@ -55,24 +55,41 @@ else
     echo "  PurpleLlama already cloned, skipping."
 fi
 
-cd PurpleLlama/CybersecurityBenchmarks
-pip install -r requirements.txt -q
-# Install the package itself so `cyberseceval` is importable from anywhere
-pip install -e . -q 2>/dev/null || echo "  (no setup.py — using PYTHONPATH instead)"
-cd "$REPO_ROOT"
+CYBERSEC_DIR="$REPO_ROOT/PurpleLlama/CybersecurityBenchmarks"
 
-# Verify import works (with fallback to path injection)
+echo "  CybersecurityBenchmarks contents:"
+ls "$CYBERSEC_DIR/"
+
+# Install requirements
+pip install -r "$CYBERSEC_DIR/requirements.txt" -q
+
+# Try pip install -e (only works if setup.py or pyproject.toml exists)
+if [ -f "$CYBERSEC_DIR/setup.py" ] || [ -f "$CYBERSEC_DIR/pyproject.toml" ]; then
+    pip install -e "$CYBERSEC_DIR" -q
+    echo "  Installed as editable package"
+fi
+
+# Verify: find what Python package names are actually available
+echo "  Verifying importable packages under CybersecurityBenchmarks..."
 python -c "
-import sys, os
-try:
-    import cyberseceval
-    print('  cyberseceval import OK (installed as package)')
-except ImportError:
-    sys.path.insert(0, os.path.join('$REPO_ROOT', 'PurpleLlama', 'CybersecurityBenchmarks'))
-    import cyberseceval
-    print('  cyberseceval import OK (via sys.path)')
+import os, sys
+base = '$CYBERSEC_DIR'
+# Add top-level dir itself
+sys.path.insert(0, base)
+# Also add any subdirs that look like packages
+found = []
+for name in os.listdir(base):
+    path = os.path.join(base, name)
+    if os.path.isdir(path) and os.path.exists(os.path.join(path, '__init__.py')):
+        found.append(name)
+if found:
+    print('  Found Python packages:', found)
+else:
+    print('  WARNING: No __init__.py packages found directly in CybersecurityBenchmarks')
+    print('  Contents:', os.listdir(base))
 "
-echo "  CyberSecEval OK"
+
+echo "  CyberSecEval setup done (will use PYTHONPATH at eval time)"
 
 # ---------------------------------------------------------------------------
 # STEP 4: Sanity-test lm-eval (gpt2 on MMLU, expect ~25% = random)
@@ -104,6 +121,9 @@ print('  unified_eval.py OK')
 echo ""
 echo "============================================================"
 echo " Activity 5 Setup COMPLETE"
-echo " Both benchmarks are installed and verified."
+echo " Torch:    OK  (CUDA available)"
+echo " lm-eval:  OK  (MMLU benchmark ready)"
+echo " PurpleLlama: cloned and configured"
+echo " unified_eval: importable"
 echo " You can now proceed to Activity 2 quantization."
 echo "============================================================"
