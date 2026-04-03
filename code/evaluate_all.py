@@ -51,7 +51,11 @@ ALL_MODELS = {
     "fp8_c3":       ("./outputs/cyber_fp8_c3/",       "FP8",       "C3 DACS"),
 }
 
-BENCHMARKS = ["cyberseceval", "mmlu"]
+# wmdp_cyber: WMDP cybersecurity subset (Li et al. 2024) — multiple-choice, fully local.
+# Chosen over CyberSecEval MITRE because CyberSecEval requires 3 LLM APIs
+# (model-under-test served via vLLM + expansion LLM + judge LLM) and has no
+# local file loader.  wmdp_cyber runs identically to MMLU via lm-eval.
+BENCHMARKS = ["wmdp_cyber", "mmlu"]
 RESULTS_FILE = "./results/activity2_all_results.json"
 # ---------------------------------------------------------------------------
 
@@ -62,15 +66,15 @@ def print_results_table(results: dict):
     print("=" * 80)
     print(" ACTIVITY 2 RESULTS TABLE")
     print("=" * 80)
-    print(f"  {'Model Key':<20} {'Format':<12} {'Calibration':<22} {'CyberSecEval':>14} {'MMLU':>8}")
-    print(f"  {'-'*20} {'-'*12} {'-'*22} {'-'*14} {'-'*8}")
+    print(f"  {'Model Key':<20} {'Format':<12} {'Calibration':<22} {'WMDP-Cyber':>12} {'MMLU':>8}")
+    print(f"  {'-'*20} {'-'*12} {'-'*22} {'-'*12} {'-'*8}")
 
     for model_key, (path, fmt, cal) in ALL_MODELS.items():
         if model_key not in results:
             continue
         r = results[model_key]
-        cseval = f"{r.get('cyberseceval', 'N/A'):.1f}%" if isinstance(r.get('cyberseceval'), float) else "N/A"
-        mmlu   = f"{r.get('mmlu', 'N/A'):.1f}%"        if isinstance(r.get('mmlu'), float)        else "N/A"
+        cseval = f"{r.get('wmdp_cyber', 'N/A'):.1f}%" if isinstance(r.get('wmdp_cyber'), float) else "N/A"
+        mmlu   = f"{r.get('mmlu', 'N/A'):.1f}%"       if isinstance(r.get('mmlu'), float)        else "N/A"
 
         # Mark C3 (DACS) rows
         marker = " ← DACS" if "c3" in model_key else ""
@@ -83,13 +87,13 @@ def print_results_table(results: dict):
     print()
 
     # Summary: C3 vs C1 delta
-    print("  DACS vs Generic Calibration (C3 - C1 delta on CyberSecEval):")
+    print("  DACS vs Generic Calibration (C3 - C1 delta on WMDP-Cyber):")
     for fmt_key, label in [("int4_awq", "AWQ INT4"), ("int8_sq", "SQ INT8"), ("fp8", "FP8")]:
         c1_key = f"{fmt_key}_c1" if fmt_key != "fp8" else "fp8_c1"
         c3_key = f"{fmt_key}_c3" if fmt_key != "fp8" else "fp8_c3"
         if c1_key in results and c3_key in results:
-            c1 = results[c1_key].get("cyberseceval")
-            c3 = results[c3_key].get("cyberseceval")
+            c1 = results[c1_key].get("wmdp_cyber")
+            c3 = results[c3_key].get("wmdp_cyber")
             if isinstance(c1, float) and isinstance(c3, float):
                 delta = c3 - c1
                 sign = "+" if delta > 0 else ""

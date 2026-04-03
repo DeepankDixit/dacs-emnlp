@@ -7,8 +7,8 @@ Results are cached so re-running the same model/benchmark is instant.
 Usage:
     from unified_eval import evaluate_model
 
-    score = evaluate_model("./outputs/cyber_int4_awq_c3/", "cyberseceval")
-    print(f"CyberSecEval: {score:.1f}%")
+    score = evaluate_model("./outputs/cyber_int4_awq_c3/", "wmdp_cyber")
+    print(f"WMDP-Cyber: {score:.1f}%")
 
     score = evaluate_model("./outputs/cyber_int4_awq_c3/", "mmlu")
     print(f"MMLU: {score:.1f}%")
@@ -25,7 +25,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Paths — update these if your project structure differs
 # ---------------------------------------------------------------------------
-CYBEREVAL_PATH = "./PurpleLlama/CybersecurityBenchmarks"
+CYBEREVAL_PATH = "./PurpleLlama/CybersecurityBenchmarks"   # kept for reference; not used in eval
 RESULTS_DIR    = "./results/eval_cache/"
 MEDQA_TEST     = "./MedQA/data/questions/US/4_options/phrases_no_exclude_test.jsonl"
 
@@ -74,8 +74,8 @@ def evaluate_model(
         print(f"  Limit:      {limit} questions (test mode)")
 
     # Dispatch to benchmark-specific runner
-    if benchmark == "cyberseceval":
-        accuracy = _run_cyberseceval(model_path, limit)
+    if benchmark == "wmdp_cyber":
+        accuracy = _run_wmdp_cyber(model_path, limit)
     elif benchmark == "mmlu":
         accuracy = _run_mmlu(model_path, num_fewshot, limit)
     elif benchmark == "medqa":
@@ -84,7 +84,7 @@ def evaluate_model(
         accuracy = _run_humaneval(model_path)
     else:
         raise ValueError(f"Unknown benchmark: {benchmark!r}. "
-                         f"Choose from: cyberseceval, mmlu, medqa, humaneval")
+                         f"Choose from: wmdp_cyber, mmlu, medqa, humaneval")
 
     # Cache the result
     with open(cache_file, "w") as f:
@@ -100,57 +100,68 @@ def evaluate_model(
 
 
 # ---------------------------------------------------------------------------
-# CyberSecEval 4 runner
+# WMDP-Cyber runner (via lm-eval)
 # ---------------------------------------------------------------------------
-def _run_cyberseceval(model_path: str, limit=None) -> float:
+# WHY WMDP-CYBER INSTEAD OF CyberSecEval MITRE:
+#
+# CyberSecEval MITRE (PurpleLlama) is a 3-LLM pipeline:
+#   1. Model under test answers cybersecurity prompts  → response file
+#   2. "Expansion LLM" (external API) elaborates responses
+#   3. "Judge LLM" (external API) scores the elaborated responses
+#
+# It has NO local model file loader — --llm-under-test takes an API endpoint
+# (e.g. OPENAI::gpt-4o::key). Evaluating 9 local HuggingFace checkpoints
+# would require: (a) vLLM serve each model, (b) external API keys for
+# judge+expansion LLMs, and (c) managing 3 concurrent processes per model.
+#
+# WMDP-Cyber (Weapons of Mass Destruction Proxy — cybersecurity subset,
+# Li et al. 2024) is a ~1987-question multiple-choice benchmark that runs
+# identically to MMLU: model picks A/B/C/D, right or wrong, no judge needed.
+# It directly tests whether cybersecurity domain knowledge is preserved after
+# quantization — exactly what the DACS hypothesis predicts (C3 > C1).
+# ---------------------------------------------------------------------------
+def _run_wmdp_cyber(model_path: str, num_fewshot=5, limit=None) -> float:
     out_dir = tempfile.mkdtemp()
     cmd = [
-        "python", "-m", "cyberseceval.run_benchmark",
-        "--benchmark", "mitre",
-        "--model-path", model_path,
-        "--output-dir", out_dir,
+        "lm_eval",
+        "--model", "hf",
+        "--model_args", f"pretrained={model_path},dtype=float16",
+        "--tasks", "wmdp_cyber",
+        "--num_fewshot", str(num_fewshot),
+        "--batch_size", "4",
+        "--output_path", out_dir,
     ]
     if limit:
-        cmd += ["--num-samples", str(limit)]
+        cmd += ["--limit", str(limit)]
 
-    # Set PYTHONPATH so `cyberseceval` package is importable inside the subprocess.
-    # `python -m module` in a subprocess does NOT automatically add cwd to sys.path
-    # in all environments — the venv's site-packages take precedence and PurpleLlama
-    # is not installed as a package, only cloned.  Prepending the abs path fixes this.
-    env = os.environ.copy()
-    cybereval_abs = os.path.abspath(CYBEREVAL_PATH)
-    env["PYTHONPATH"] = cybereval_abs + (":" + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=CYBEREVAL_PATH,
-        env=env,
-    )
+    result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode != 0:
-        print(f"  WARNING: CyberSecEval returned non-zero exit code")
+        print(f"  WARNING: lm-eval (wmdp_cyber) returned non-zero exit code")
         print(f"  stderr: {result.stderr[-500:]}")
 
-    # Parse accuracy from stdout
-    for line in result.stdout.split("\n"):
-        if "accuracy" in line.lower():
-            match = re.search(r"(\d+\.\d+)", line)
-            if match:
-                return float(match.group(1))
-
-    # Try to parse from output JSON files
-    for json_file in Path(out_dir).glob("**/*.json"):
+    # lm-eval writes JSON results — parse results["wmdp_cyber"]["acc,none"]
+    result_files = list(Path(out_dir).glob("**/*.json"))
+    for rf in result_files:
         try:
-            with open(json_file) as f:
+            with open(rf) as f:
                 data = json.load(f)
-            if "accuracy" in data:
-                return float(data["accuracy"]) * 100
+            if "results" in data and "wmdp_cyber" in data["results"]:
+                acc = data["results"]["wmdp_cyber"].get("acc,none",
+                      data["results"]["wmdp_cyber"].get("acc", 0))
+                return float(acc) * 100
         except Exception:
             pass
 
-    print(f"  WARNING: Could not parse CyberSecEval accuracy. stdout: {result.stdout[-200:]}")
+    # Fallback: parse from stdout
+    for line in result.stdout.split("\n"):
+        if "wmdp_cyber" in line.lower() and "acc" in line.lower():
+            match = re.search(r"(\d+\.\d+)", line)
+            if match:
+                val = float(match.group(1))
+                return val * 100 if val < 1 else val
+
+    print(f"  WARNING: Could not parse WMDP-Cyber accuracy.")
     return 0.0
 
 
@@ -299,7 +310,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Evaluate a model on a benchmark")
     parser.add_argument("model_path", help="Path to model directory")
-    parser.add_argument("benchmark", choices=["cyberseceval", "mmlu", "medqa", "humaneval"])
+    parser.add_argument("benchmark", choices=["wmdp_cyber", "mmlu", "medqa", "humaneval"])
     parser.add_argument("--limit", type=int, default=None, help="Max questions (for quick testing)")
     parser.add_argument("--force-rerun", action="store_true")
     args = parser.parse_args()
