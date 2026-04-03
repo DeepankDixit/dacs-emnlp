@@ -22,6 +22,11 @@ from transformers import AutoTokenizer
 MERGED_MODEL = "./outputs/cybersec_analyst_merged_fp16/"
 CALIB_JSONL  = "./outputs/dacs_calib_512.jsonl"
 OUTPUT_PATH  = "./outputs/cyber_int4_awq_c3/"
+# AWQ holds ALL calibration activations for each layer simultaneously in memory
+# during scale search. 512 samples × Llama hidden dims exceeds the ~6 GB VRAM
+# headroom. 128 is the standard AWQ calibration count (used in the original
+# paper and in our C1 baseline) — we change calibration DOMAIN, not quantity.
+N_CALIB_AWQ  = 128
 
 QUANT_CONFIG = {
     "zero_point": True,
@@ -46,7 +51,8 @@ def main():
     print(f"[1/3] Loading DACS calibration data from {CALIB_JSONL}...")
     with open(CALIB_JSONL) as f:
         calib_texts = [json.loads(line)["text"] for line in f]
-    print(f"  Loaded {len(calib_texts)} DACS calibration samples")
+    calib_texts = calib_texts[:N_CALIB_AWQ]   # AWQ needs same count as C1 (128)
+    print(f"  Loaded {len(calib_texts)} DACS calibration samples (truncated to {N_CALIB_AWQ} for AWQ)")
     print(f"  Sample preview: {calib_texts[0][:120]!r}")
     print(f"  Note: These are ASSISTANT-TURN texts from the SFT training corpus.")
     print(f"  They contain the exact domain vocabulary the model was fine-tuned on.")
