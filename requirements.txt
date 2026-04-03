@@ -1,0 +1,40 @@
+# DACS Project — Lambda A10G (CUDA 12.4) Dependencies
+# =======================================================
+# INSTALL ORDER MATTERS — follow setup_lambda.sh, do not just pip install -r this directly.
+# torch must come first from the cu124 index before anything else.
+#
+# Quick setup on a fresh Lambda instance:
+#   git clone <your-repo> dacs-emnlp && cd dacs-emnlp
+#   python3 -m venv venv && source venv/bin/activate
+#   bash code/setup_lambda.sh
+
+# ── PyTorch (CUDA 12.4 wheels — required for ModelOpt 0.42.0) ──────────────
+# Install these FIRST via:
+#   pip install torch==2.6.0+cu124 torchvision torchaudio \
+#       --index-url https://download.pytorch.org/whl/cu124
+torch==2.6.0+cu124
+torchvision
+torchaudio
+
+# ── Quantization ────────────────────────────────────────────────────────────
+nvidia-modelopt==0.42.0          # SmoothQuant (W8A8) and FP8 — MUST be 0.42.0
+autoawq>=0.2.5                   # AWQ INT4 quantization
+
+# ── HuggingFace stack ───────────────────────────────────────────────────────
+transformers>=4.45.0             # Llama-3.1 support requires >=4.43
+accelerate>=0.34.0               # device_map="auto" multi-GPU/CPU offload
+peft>=0.12.0                     # LoRA adapter loading (merge_adapter.py)
+datasets>=2.20.0                 # HuggingFace datasets (Trendyol corpus)
+tokenizers>=0.19.0               # Fast tokenizer backend
+sentencepiece>=0.2.0             # Llama tokenizer
+safetensors>=0.4.3               # Model checkpoint format
+
+# ── Evaluation ──────────────────────────────────────────────────────────────
+lm-eval>=0.4.3                   # MMLU + WMDP-Cyber (wmdp_cyber task)
+
+# ── General utilities ───────────────────────────────────────────────────────
+numpy>=1.26.0
+tqdm>=4.66.0
+einops>=0.7.0                    # Required by some ModelOpt internals
+packaging>=24.0
+scipy>=1.13.0
