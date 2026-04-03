@@ -61,7 +61,7 @@ def main():
                 m(**inputs)
         mtq.quantize(model, mtq.FP8_DEFAULT_CFG, forward_loop=forward_loop)
     except ImportError:
-        print("ERROR: Install nvidia-modelopt[torch] --break-system-packages")
+        print("ERROR: Install nvidia-modelopt[torch]")
         sys.exit(1)
 
     model.save_pretrained(OUTPUT_PATH)

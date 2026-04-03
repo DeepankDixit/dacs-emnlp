@@ -248,7 +248,7 @@ def _run_humaneval(model_path: str) -> float:
         from human_eval.data import read_problems, write_jsonl
         from human_eval.evaluation import evaluate_functional_correctness
     except ImportError:
-        print("  human-eval not installed. Run: pip install human-eval --break-system-packages")
+        print("  human-eval not installed. Run: pip install human-eval")
         return 0.0
 
     import torch

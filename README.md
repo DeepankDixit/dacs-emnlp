@@ -8,9 +8,17 @@ EMNLP 2026 submission — Optum AI Research.
 ## Setup (Lambda Cloud GPU — A10G)
 
 ```bash
+# 1. System packages + fresh virtual environment
+sudo apt update
+sudo apt install -y python3-pip python3-venv git
+python3 -m venv venv
+source venv/bin/activate
+
+# 2. Clone repo
 git clone https://github.com/DeepankDixit/dacs-emnlp.git
 cd dacs-emnlp
 
+# 3. Environment variables
 export HF_TOKEN="hf_your_token_here"
 export SFT_CORPUS_PATH="/path/to/cybersec_sft_train.jsonl"
 export ADAPTER_PATH="/path/to/cybersec_analyst_lora/"
@@ -19,11 +27,11 @@ export ADAPTER_PATH="/path/to/cybersec_analyst_lora/"
 ## Run Order
 
 ```bash
-# 1. Install eval benchmarks (do this first, before anything else)
+# 4. Install eval benchmarks (do this first, before anything else)
 bash code/setup_eval_harness.sh
 
-# 2. Install quantization libraries
-pip install autoawq nvidia-modelopt[torch] transformers==4.43.0 peft==0.11.0 accelerate --break-system-packages
+# 5. Install quantization libraries
+pip install autoawq nvidia-modelopt[torch] transformers==4.43.0 peft==0.11.0 accelerate
 
 # 3. Re-merge LoRA adapter → FP16 model (~15 min)
 python code/merge_adapter.py

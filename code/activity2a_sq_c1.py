@@ -114,7 +114,7 @@ def main():
             print("  SmoothQuant migration applied (alpha=0.5)")
         except ImportError:
             print("  ERROR: Neither modelopt nor smoothquant is installed.")
-            print("  Run: pip install nvidia-modelopt[torch] --break-system-packages")
+            print("  Run: pip install nvidia-modelopt[torch]")
             sys.exit(1)
 
     # Save quantized model

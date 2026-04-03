@@ -22,7 +22,7 @@ echo "============================================================"
 # ---------------------------------------------------------------------------
 echo ""
 echo "[1/5] Installing lm-eval harness (EleutherAI)..."
-pip install lm-eval --break-system-packages -q
+pip install lm-eval -q
 
 python -c "import lm_eval; print('  lm-eval version:', lm_eval.__version__)"
 echo "  lm-eval OK"
@@ -40,7 +40,7 @@ else
 fi
 
 cd PurpleLlama/CybersecurityBenchmarks
-pip install -r requirements.txt --break-system-packages -q
+pip install -r requirements.txt -q
 cd ../..
 
 python -c "import sys; sys.path.insert(0, 'PurpleLlama/CybersecurityBenchmarks'); print('  CyberSecEval import OK')"

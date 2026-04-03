@@ -104,7 +104,7 @@ def main():
 
     except ImportError:
         print("  ERROR: ModelOpt not installed.")
-        print("  Run: pip install nvidia-modelopt[torch] --break-system-packages")
+        print("  Run: pip install nvidia-modelopt[torch]")
         sys.exit(1)
 
     # Save quantized model
