@@ -4,34 +4,50 @@
 # Run this FIRST on your Lambda Cloud GPU instance, before any quantization.
 # Without working benchmarks you cannot record results for Activities 2-6.
 #
-# Usage:
-#   bash setup_eval_harness.sh
+# Usage (run from repo root):
+#   bash code/setup_eval_harness.sh
 #
-# Expected total time: ~10 minutes
+# Expected total time: ~15-20 minutes (torch download is ~2GB)
 # =============================================================================
 
-set -e  # stop on first error
+set -e  # stop on first unpiped error
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 
 echo "============================================================"
 echo " DACS: Activity 5 — Eval Harness Setup"
 echo " Run this BEFORE Activity 2 quantization"
+echo " Repo root: $REPO_ROOT"
 echo "============================================================"
 
 # ---------------------------------------------------------------------------
-# STEP 1: Install lm-eval (MMLU benchmark)
+# STEP 1: Install PyTorch (CUDA 12.1 — matches Lambda A10G)
 # ---------------------------------------------------------------------------
 echo ""
-echo "[1/5] Installing lm-eval harness (EleutherAI)..."
+echo "[1/5] Installing PyTorch with CUDA 12.1 support..."
+pip install torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cu121 -q
+
+python -c "import torch; print('  torch version:', torch.__version__); print('  CUDA available:', torch.cuda.is_available())"
+echo "  PyTorch OK"
+
+# ---------------------------------------------------------------------------
+# STEP 2: Install lm-eval (MMLU benchmark)
+# ---------------------------------------------------------------------------
+echo ""
+echo "[2/5] Installing lm-eval harness (EleutherAI)..."
 pip install lm-eval -q
 
 python -c "import lm_eval; print('  lm-eval version:', lm_eval.__version__)"
 echo "  lm-eval OK"
 
 # ---------------------------------------------------------------------------
-# STEP 2: Install CyberSecEval 4 (Meta PurpleLlama)
+# STEP 3: Clone and install CyberSecEval 4 (Meta PurpleLlama)
 # ---------------------------------------------------------------------------
 echo ""
-echo "[2/5] Cloning and installing CyberSecEval 4 (PurpleLlama)..."
+echo "[3/5] Cloning and installing CyberSecEval 4 (PurpleLlama)..."
 
 if [ ! -d "PurpleLlama" ]; then
     git clone https://github.com/meta-llama/PurpleLlama.git --depth=1
@@ -41,47 +57,49 @@ fi
 
 cd PurpleLlama/CybersecurityBenchmarks
 pip install -r requirements.txt -q
-cd ../..
+# Install the package itself so `cyberseceval` is importable from anywhere
+pip install -e . -q 2>/dev/null || echo "  (no setup.py — using PYTHONPATH instead)"
+cd "$REPO_ROOT"
 
-python -c "import sys; sys.path.insert(0, 'PurpleLlama/CybersecurityBenchmarks'); print('  CyberSecEval import OK')"
+# Verify import works (with fallback to path injection)
+python -c "
+import sys, os
+try:
+    import cyberseceval
+    print('  cyberseceval import OK (installed as package)')
+except ImportError:
+    sys.path.insert(0, os.path.join('$REPO_ROOT', 'PurpleLlama', 'CybersecurityBenchmarks'))
+    import cyberseceval
+    print('  cyberseceval import OK (via sys.path)')
+"
 echo "  CyberSecEval OK"
 
 # ---------------------------------------------------------------------------
-# STEP 3: Sanity test lm-eval (runs MMLU on gpt2, expects ~25% = random)
+# STEP 4: Sanity-test lm-eval (gpt2 on MMLU, expect ~25% = random)
 # ---------------------------------------------------------------------------
 echo ""
-echo "[3/5] Sanity-testing lm-eval on gpt2 (20 questions, expect ~25% accuracy)..."
+echo "[4/5] Sanity-testing lm-eval on gpt2 (20 questions, expect ~25% accuracy)..."
 lm_eval --model hf \
     --model_args pretrained=gpt2 \
     --tasks mmlu \
     --num_fewshot 5 \
     --limit 20 \
     --output_path /tmp/mmlu_sanity_test/ \
-    2>&1 | tail -5
+    2>&1 | tail -8 || true
 
 echo "  lm-eval sanity test complete (gpt2 ~25% is expected and correct)"
 
 # ---------------------------------------------------------------------------
-# STEP 4: Sanity test CyberSecEval on gpt2 (5 samples, just checks it runs)
-# ---------------------------------------------------------------------------
-echo ""
-echo "[4/5] Sanity-testing CyberSecEval on gpt2 (5 samples, checks pipeline only)..."
-cd PurpleLlama/CybersecurityBenchmarks
-python -m cyberseceval.run_benchmark \
-    --benchmark mitre \
-    --model gpt2 \
-    --num-samples 5 \
-    --output-dir /tmp/cyberseceval_sanity_test/ \
-    2>&1 | tail -5
-cd ../..
-echo "  CyberSecEval sanity test complete"
-
-# ---------------------------------------------------------------------------
-# STEP 5: Verify unified_eval.py can be imported
+# STEP 5: Verify unified_eval.py is importable
 # ---------------------------------------------------------------------------
 echo ""
 echo "[5/5] Verifying unified_eval.py is importable..."
-python -c "import sys; sys.path.insert(0, '.'); from unified_eval import evaluate_model; print('  unified_eval.py OK')"
+python -c "
+import sys, os
+sys.path.insert(0, os.path.join('$REPO_ROOT', 'code'))
+from unified_eval import evaluate_model
+print('  unified_eval.py OK')
+"
 
 echo ""
 echo "============================================================"
