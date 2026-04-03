@@ -17,11 +17,14 @@ import json
 from awq import AutoAWQForCausalLM
 from transformers import AutoTokenizer
 
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 # ---------------------------------------------------------------------------
-MERGED_MODEL = "./outputs/cybersec_analyst_merged_fp16/"
-CALIB_JSONL  = "./outputs/self_calib_samples_c2.jsonl"
-OUTPUT_PATH  = "./outputs/cyber_int4_awq_c2/"
-N_CALIB_AWQ  = 128   # AWQ memory limit — matches C1 count; change domain, not quantity
+MERGED_MODEL    = "./outputs/cybersec_analyst_merged_fp16/"
+CALIB_JSONL     = "./outputs/self_calib_samples_c2.jsonl"
+OUTPUT_PATH     = "./outputs/cyber_int4_awq_c2/"
+N_CALIB_AWQ     = 128    # match C1 sample count; change domain, not quantity
+MAX_CALIB_CHARS = 512    # cap sequence length to ~128 tokens (matches WikiText-2 passage lengths)
 
 QUANT_CONFIG = {
     "zero_point": True,
@@ -47,8 +50,8 @@ def main():
     print(f"[1/3] Loading self-calibration data from {CALIB_JSONL}...")
     with open(CALIB_JSONL) as f:
         calib_texts = [json.loads(line)["text"] for line in f]
-    calib_texts = calib_texts[:N_CALIB_AWQ]
-    print(f"  Loaded {len(calib_texts)} self-generated calibration samples (capped at {N_CALIB_AWQ} for AWQ)")
+    calib_texts = [t[:MAX_CALIB_CHARS] for t in calib_texts[:N_CALIB_AWQ]]
+    print(f"  Using {len(calib_texts)} self-generated samples, each capped at {MAX_CALIB_CHARS} chars")
     print(f"  Sample preview: {calib_texts[0][:120]!r}")
     print(f"  Note: These are MODEL-GENERATED texts — domain-influenced but NOT SFT corpus.")
 
