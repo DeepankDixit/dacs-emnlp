@@ -63,7 +63,7 @@ def main():
             with torch.no_grad():
                 m(**inputs)
         print("  Using ModelOpt backend...")
-        mtq.quantize(model, quant_cfg=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=forward_loop)
+        mtq.quantize(model, config=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=forward_loop)
         backend_used = "modelopt"
     except (ImportError, AttributeError) as e:
         print(f"  ModelOpt not usable ({e}). Trying smoothquant fallback...")

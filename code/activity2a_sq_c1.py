@@ -111,7 +111,7 @@ def main():
                 model(**inputs)
 
         print("  Using ModelOpt backend (nvidia-modelopt)...")
-        mtq.quantize(model, quant_cfg=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=forward_loop)
+        mtq.quantize(model, config=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=forward_loop)
         backend_used = "modelopt"
         print("  ModelOpt INT8 W8A8 quantization applied.")
 
