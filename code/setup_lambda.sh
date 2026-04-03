@@ -26,25 +26,22 @@ echo "      torch OK"
 # ── Step 2: Quantization libraries ──────────────────────────────────────────
 echo "[2/5] Installing quantization libraries..."
 pip install nvidia-modelopt==0.42.0 -q
-pip install autoawq -q
+pip install autoawq==0.2.9 -q
 echo "      modelopt + autoawq OK"
 
 # ── Step 3: HuggingFace + eval stack ────────────────────────────────────────
 echo "[3/5] Installing HuggingFace stack + lm-eval..."
 pip install \
-    transformers>=4.45.0 \
-    accelerate>=0.34.0 \
-    peft>=0.12.0 \
-    datasets>=2.20.0 \
-    tokenizers>=0.19.0 \
-    sentencepiece>=0.2.0 \
-    safetensors>=0.4.3 \
-    lm-eval>=0.4.3 \
-    numpy>=1.26.0 \
-    tqdm>=4.66.0 \
-    einops>=0.7.0 \
-    packaging>=24.0 \
-    scipy>=1.13.0 -q
+    transformers==5.5.0 \
+    accelerate==1.13.0 \
+    peft==0.18.1 \
+    datasets==4.8.4 \
+    tokenizers==0.22.2 \
+    safetensors==0.7.0 \
+    lm-eval==0.4.11 \
+    numpy==2.2.6 \
+    tqdm==4.66.3 \
+    packaging==26.0 -q
 echo "      HuggingFace stack OK"
 
 # ── Step 4: Clone PurpleLlama (datasets kept for reference) ─────────────────
