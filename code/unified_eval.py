@@ -113,11 +113,20 @@ def _run_cyberseceval(model_path: str, limit=None) -> float:
     if limit:
         cmd += ["--num-samples", str(limit)]
 
+    # Set PYTHONPATH so `cyberseceval` package is importable inside the subprocess.
+    # `python -m module` in a subprocess does NOT automatically add cwd to sys.path
+    # in all environments — the venv's site-packages take precedence and PurpleLlama
+    # is not installed as a package, only cloned.  Prepending the abs path fixes this.
+    env = os.environ.copy()
+    cybereval_abs = os.path.abspath(CYBEREVAL_PATH)
+    env["PYTHONPATH"] = cybereval_abs + (":" + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+
     result = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
         cwd=CYBEREVAL_PATH,
+        env=env,
     )
 
     if result.returncode != 0:
