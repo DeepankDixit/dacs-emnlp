@@ -30,7 +30,11 @@ MERGED_MODEL = "./outputs/cybersec_analyst_merged_fp16/"
 OUTPUT_PATH  = "./outputs/cyber_int8_sq_c1/"
 N_CALIB      = 512    # SmoothQuant default: more samples than AWQ (512 vs 128)
 MAX_LENGTH   = 512    # truncate long sequences
+CALIB_BATCH  = 8      # forward-pass mini-batch size — A10G (24 GB) OOMs at 512 at once
 # ---------------------------------------------------------------------------
+
+# Reduce VRAM fragmentation — must be set before any CUDA allocation
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 def main():
     os.makedirs(OUTPUT_PATH, exist_ok=True)
@@ -107,10 +111,15 @@ def main():
         _ = mtq.INT8_SMOOTHQUANT_CFG
 
         def forward_loop(model):
+            """Run calibration in mini-batches to avoid CUDA OOM on A10G (24 GB)."""
+            n = inputs["input_ids"].shape[0]
             with torch.no_grad():
-                model(**inputs)
+                for start in range(0, n, CALIB_BATCH):
+                    batch = {k: v[start:start+CALIB_BATCH] for k, v in inputs.items()}
+                    model(**batch)
 
         print("  Using ModelOpt backend (nvidia-modelopt)...")
+        print(f"  Calibration: {N_CALIB} samples in mini-batches of {CALIB_BATCH}")
         mtq.quantize(model, config=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=forward_loop)
         backend_used = "modelopt"
         print("  ModelOpt INT8 W8A8 quantization applied.")

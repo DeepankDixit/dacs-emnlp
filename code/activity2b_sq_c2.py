@@ -20,7 +20,10 @@ MERGED_MODEL = "./outputs/cybersec_analyst_merged_fp16/"
 CALIB_JSONL  = "./outputs/self_calib_samples_c2.jsonl"
 OUTPUT_PATH  = "./outputs/cyber_int8_sq_c2/"
 MAX_LENGTH   = 512
+CALIB_BATCH  = 8      # mini-batch size for forward pass — avoids CUDA OOM on A10G
 # ---------------------------------------------------------------------------
+
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 def main():
     os.makedirs(OUTPUT_PATH, exist_ok=True)
@@ -60,8 +63,11 @@ def main():
         import modelopt.torch.quantization as mtq
         _ = mtq.INT8_SMOOTHQUANT_CFG
         def forward_loop(m):
+            n = inputs["input_ids"].shape[0]
             with torch.no_grad():
-                m(**inputs)
+                for start in range(0, n, CALIB_BATCH):
+                    batch = {k: v[start:start+CALIB_BATCH] for k, v in inputs.items()}
+                    m(**batch)
         print("  Using ModelOpt backend...")
         mtq.quantize(model, config=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=forward_loop)
         backend_used = "modelopt"
