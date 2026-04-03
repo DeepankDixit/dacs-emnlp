@@ -24,6 +24,10 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
 
+# Reduce CUDA memory fragmentation — prevents OOM from reserved-but-unallocated
+# blocks filling up the allocator before the next large tensor can be placed.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -32,6 +36,11 @@ OUTPUT_PATH  = "./outputs/cyber_fp8_c1/"
 N_CALIB      = 128
 MAX_LENGTH   = 512
 MIN_LEN      = 50
+# Mini-batch size for the ModelOpt calibration forward loop.
+# With batch=128 and seq_len=512, the MLP gate/up_proj intermediates alone
+# occupy ~1.88 GB — far exceeding the ~6 GB VRAM headroom left after loading
+# the 16 GB FP16 model. Processing 4 samples at a time keeps peak usage safe.
+CALIB_BATCH  = 4
 # ---------------------------------------------------------------------------
 
 def main():
@@ -95,12 +104,15 @@ def main():
         quant_cfg = mtq.FP8_DEFAULT_CFG
 
         def forward_loop(model):
-            """Run calibration forward passes to collect activation statistics."""
+            """Mini-batch calibration loop — avoids OOM from batch=128×seq=512."""
+            n = inputs["input_ids"].shape[0]
             with torch.no_grad():
-                model(**inputs)
+                for start in range(0, n, CALIB_BATCH):
+                    batch = {k: v[start:start+CALIB_BATCH] for k, v in inputs.items()}
+                    model(**batch)
 
-        print("  Using ModelOpt FP8 backend...")
-        mtq.quantize(model, quant_cfg, forward_loop=forward_loop)
+        print(f"  Using ModelOpt FP8 backend (mini-batch={CALIB_BATCH})...")
+        mtq.quantize(model, config=quant_cfg, forward_loop=forward_loop)
 
     except ImportError:
         print("  ERROR: ModelOpt not installed.")

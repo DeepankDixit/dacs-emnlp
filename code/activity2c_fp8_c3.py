@@ -14,11 +14,14 @@ import json
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 # ---------------------------------------------------------------------------
 MERGED_MODEL = "./outputs/cybersec_analyst_merged_fp16/"
 CALIB_JSONL  = "./outputs/dacs_calib_512.jsonl"
 OUTPUT_PATH  = "./outputs/cyber_fp8_c3/"
 MAX_LENGTH   = 512
+CALIB_BATCH  = 4   # mini-batch size — avoids OOM from batch×seq_len² activations
 # ---------------------------------------------------------------------------
 
 def main():
@@ -56,9 +59,12 @@ def main():
     try:
         import modelopt.torch.quantization as mtq
         def forward_loop(m):
+            n = inputs["input_ids"].shape[0]
             with torch.no_grad():
-                m(**inputs)
-        mtq.quantize(model, mtq.FP8_DEFAULT_CFG, forward_loop=forward_loop)
+                for start in range(0, n, CALIB_BATCH):
+                    batch = {k: v[start:start+CALIB_BATCH] for k, v in inputs.items()}
+                    m(**batch)
+        mtq.quantize(model, config=mtq.FP8_DEFAULT_CFG, forward_loop=forward_loop)
     except ImportError:
         print("ERROR: Install nvidia-modelopt[torch]")
         sys.exit(1)
