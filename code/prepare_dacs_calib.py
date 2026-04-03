@@ -16,9 +16,10 @@ Why 512 samples (not 128 like AWQ default)?
   512 is the SmoothQuant default and also works well for AWQ.
   The DACS paper uses 512 for all three quantization formats.
 
-Input:    LoraForge SFT training corpus (cybersec_sft_train.jsonl)
+Input:    LoraForge SFT training corpus — either a local JSONL or auto-downloaded
+          from HuggingFace (Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset)
 Output:   ./outputs/dacs_calib_512.jsonl
-Runtime:  ~1 minute (CPU — no GPU needed)
+Runtime:  ~1-2 minutes (CPU; add ~2 min first time for HF download)
 """
 
 import os
@@ -29,12 +30,18 @@ import random
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-# Path to the SFT training corpus from LoraForge Activity 0
-# Update this to wherever you placed the LoraForge data on Lambda Cloud
+# Path to the SFT training corpus from LoraForge Activity 0.
+# If this file does not exist, the script will auto-download from HuggingFace
+# and save it here for future runs.
 SFT_CORPUS_PATH = os.environ.get(
     "SFT_CORPUS_PATH",
-    "../LoraForge/data/cybersec_sft_train.jsonl",
+    "./outputs/cybersec_sft_train.jsonl",   # auto-saved here on first run
 )
+
+# HuggingFace dataset used in LoraForge Activity 0 (fallback if no local file)
+HF_DATASET_PRIMARY  = "Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset"
+HF_INSTRUCTION_COL  = "user"
+HF_RESPONSE_COL     = "assistant"
 
 OUTPUT_JSONL = "./outputs/dacs_calib_512.jsonl"
 N_SAMPLES    = 512
@@ -84,16 +91,36 @@ def main():
     print(f"  N samples:  {N_SAMPLES} (seed={SEED})")
     print()
 
+    # Step 1: Load corpus — from local file or HuggingFace
     if not os.path.exists(SFT_CORPUS_PATH):
-        print(f"ERROR: SFT corpus not found: {SFT_CORPUS_PATH}")
+        print(f"  Local corpus not found at: {SFT_CORPUS_PATH}")
+        print(f"  Auto-downloading from HuggingFace: {HF_DATASET_PRIMARY}")
+        print(f"  (This happens once — saved to {SFT_CORPUS_PATH} for future runs)")
         print()
-        print("  Solutions:")
-        print("  1. Copy your LoraForge data to the expected path, OR")
-        print("  2. Set the SFT_CORPUS_PATH environment variable:")
-        print("     export SFT_CORPUS_PATH=/path/to/your/cybersec_sft_train.jsonl")
-        sys.exit(1)
+        try:
+            from datasets import load_dataset
+        except ImportError:
+            print("ERROR: 'datasets' library not installed.")
+            print("  Fix: pip install datasets")
+            sys.exit(1)
 
-    # Step 1: Load the full SFT corpus
+        hf_ds = load_dataset(HF_DATASET_PRIMARY, split="train", trust_remote_code=True)
+        print(f"  Downloaded {len(hf_ds)} examples from HuggingFace")
+
+        # Save as JSONL in ChatML format so extract_assistant_text() can parse it
+        print(f"  Saving to {SFT_CORPUS_PATH}...")
+        with open(SFT_CORPUS_PATH, "w") as f:
+            for row in hf_ds:
+                record = {
+                    "messages": [
+                        {"role": "user",      "content": row[HF_INSTRUCTION_COL]},
+                        {"role": "assistant", "content": row[HF_RESPONSE_COL]},
+                    ]
+                }
+                f.write(json.dumps(record) + "\n")
+        print(f"  Saved {len(hf_ds)} examples")
+        print()
+
     print(f"[1/4] Loading SFT corpus from {SFT_CORPUS_PATH}...")
     with open(SFT_CORPUS_PATH) as f:
         sft_corpus = [json.loads(line) for line in f if line.strip()]
