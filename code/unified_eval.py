@@ -75,7 +75,7 @@ def evaluate_model(
 
     # Dispatch to benchmark-specific runner
     if benchmark == "wmdp_cyber":
-        accuracy = _run_wmdp_cyber(model_path, limit)
+        accuracy = _run_wmdp_cyber(model_path, limit=limit)
     elif benchmark == "mmlu":
         accuracy = _run_mmlu(model_path, num_fewshot, limit)
     elif benchmark == "medqa":
