@@ -52,37 +52,59 @@ from tqdm import tqdm
 def detect_format(model_path: str) -> str:
     """
     Returns: "awq", "sq_int8", "fp8", or "fp16".
-    Reads quantize_config.json (autoawq) or config.json (modelopt).
+
+    Detection order:
+    1. Path-name heuristic (primary — our naming convention is consistent)
+    2. quantize_config.json (autoawq AWQ format)
+    3. config.json quantization_config (modelopt)
+    4. Safetensors dtype inspection
     """
     model_path = Path(model_path)
+    path_lower = str(model_path).lower()
 
-    # AutoAWQ saves quantize_config.json
+    # ── 1. Path-name heuristic (fast, reliable for DACS naming convention) ────
+    # cyber_int4_awq_c{1,2,3}  → awq
+    # cyber_int8_sq_c{1,2,3}   → sq_int8
+    # cyber_fp8_c{1,2,3}       → fp8
+    if "awq" in path_lower:
+        return "awq"
+    if "_sq_" in path_lower or "smoothquant" in path_lower:
+        return "sq_int8"
+    if "fp8" in path_lower:
+        return "fp8"
+
+    # ── 2. AutoAWQ quantize_config.json ───────────────────────────────────────
     awq_cfg = model_path / "quantize_config.json"
     if awq_cfg.exists():
-        with open(awq_cfg) as f:
-            cfg = json.load(f)
-        if cfg.get("zero_point") is not None:          # AWQ format
-            return "awq"
+        try:
+            with open(awq_cfg) as f:
+                cfg = json.load(f)
+            # autoawq sets w_bit=4, zero_point=True/False
+            if cfg.get("w_bit") == 4 or "awq" in cfg.get("version", "").lower():
+                return "awq"
+        except Exception:
+            pass
 
-    # modelopt saves quantization config inside config.json
+    # ── 3. config.json quantization_config (modelopt) ─────────────────────────
     main_cfg = model_path / "config.json"
     if main_cfg.exists():
-        with open(main_cfg) as f:
-            cfg = json.load(f)
-
-        qcfg = cfg.get("quantization_config", {})
-        quant_type = qcfg.get("quant_type", "").lower()
-        if "fp8" in quant_type:
-            return "fp8"
-        if "int8" in quant_type or "smoothquant" in quant_type or "sq" in quant_type:
-            return "sq_int8"
-        # Also check for modelopt quantizer_map in the config
-        if "modelopt_quantization" in cfg or cfg.get("architectures", [""])[0].endswith("ForCausalLM"):
-            # Check safetensors dtype
-            if _check_fp8_weights(model_path):
+        try:
+            with open(main_cfg) as f:
+                cfg = json.load(f)
+            qcfg = cfg.get("quantization_config", {})
+            quant_type = qcfg.get("quant_type", "").lower()
+            if "fp8" in quant_type:
                 return "fp8"
-            if _check_int8_weights(model_path):
+            if "int8" in quant_type or "smoothquant" in quant_type or "sq" in quant_type:
                 return "sq_int8"
+        except Exception:
+            pass
+
+    # ── 4. Safetensors dtype inspection ───────────────────────────────────────
+    if _check_fp8_weights(model_path):
+        return "fp8"
+    if _check_int8_weights(model_path):
+        return "sq_int8"
 
     return "fp16"
 
