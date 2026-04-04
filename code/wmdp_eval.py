@@ -164,81 +164,129 @@ def load_awq_model(model_path: str):
     return model, tokenizer
 
 
-def load_sq_model(model_path: str):
+def load_sq_model(model_path: str,
+                  base_model_path: str = "./outputs/cybersec_analyst_merged_fp16/"):
     """
     Load SQ INT8 model correctly.
 
     WHY THIS IS COMPLEX:
-      The SQ scripts used mtq.quantize() then model.save_pretrained().
-      HuggingFace's save_pretrained() writes NO quantization metadata to config.json —
-      it serialises whatever buffers exist on the model at save time.
-      So the saved checkpoint contains:
-        - Smoothed FP16 weights  (W * s, where s is the per-channel migration factor)
+      The SQ scripts called mtq.quantize() then model.save_pretrained().
+      save_pretrained() is a HuggingFace method — it writes NO quantization
+      metadata to config.json.  The saved checkpoint contains:
+        - Smoothed FP16 weights  (W * s, where s = per-channel migration factor)
         - Quantizer buffers      (_amax, _pre_quant_scale) as extra safetensors keys
         - config.json with zero quantization info (plain Llama config)
 
-      Loading naively gives smoothed weights but drops quantizer buffers (UNEXPECTED).
-      At inference: X @ (W*s) instead of (X/s) @ (W*s)  →  garbage output, ~25%.
+      ATTEMPT 1 — dummy forward loop:
+        mtq.quantize() with zero forward passes → "Smoothed 0 modules".
+        SmoothQuant needs actual data to detect outlier activation channels; without
+        forward passes it cannot determine which modules to smooth.  The resulting
+        quantizer structure (0 modules smoothed) does not match the saved state dict
+        (224 modules smoothed → 672 quantizer keys).  load_state_dict reports all 672
+        as "Unexpected", then CUDA device-side assert fires on the mismatched tensor
+        assignment.  DOES NOT WORK.
 
-      Fix:
-        1. Load model in FP16 (gets smoothed weights)
-        2. Apply mtq.quantize() with a DUMMY forward loop — inserts quantizer module
-           structure without re-calibrating (zero forward passes)
-        3. Load full state dict — overwrites dummy quantizer buffers with saved
-           calibrated amax/pre_quant_scale values
-        4. Inference runs with fake INT8 (quantize→dequantize in FP16 arithmetic),
-           correctly simulating INT8 accuracy without TensorRT
+      CORRECT FIX — warm-up calibration on the BASE FP16 model:
+        1. Load the UNSMOOTHED base FP16 model (not the SQ checkpoint)
+        2. Run mtq.quantize() with 16 short warm-up samples → same 224 modules get
+           smoothed (outlier channel pattern is stable across calibration datasets),
+           creating the correct quantizer module structure
+        3. Load the SQ checkpoint's state dict (CPU first to avoid VRAM OOM):
+           - Overwrites weights with the original calibration's smoothed W*s values
+           - Overwrites quantizer buffers with the original amax/pre_quant_scale
+           - All 672 keys now match → zero unexpected keys
+        4. Inference runs with fake INT8 (quantize→dequantize in FP16 arithmetic)
+           using the correct calibration-specific scales.
+
+      MEMORY NOTE (OOM history):
+        load_file(device="cuda") loads the full 16GB state dict onto VRAM on top of
+        the 16GB model → 32GB total > A10's 24GB limit → OOM.
+        Fix: load to CPU RAM, then load_state_dict() copies tensors to GPU one at a
+        time (peak overhead ≈ 1 tensor, not 16GB).
     """
     try:
         import modelopt.torch.quantization as mtq
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from safetensors.torch import load_file
+        import gc
     except ImportError as e:
         raise ImportError(f"Missing dependency: {e}")
 
-    print(f"  Loading SQ INT8 model (mtq.quantize + load_state_dict): {model_path}")
+    print(f"  Loading SQ INT8 model (warm-up calibration + load_state_dict): {model_path}")
+    print(f"  Base model: {base_model_path}")
     tokenizer = AutoTokenizer.from_pretrained(model_path)
+    tokenizer.pad_token = tokenizer.eos_token
 
-    # Step 1: Load base model (smoothed weights load correctly; quantizer buffers dropped)
+    # Step 1: Load the BASE FP16 model (unsmoothed weights)
+    # We intentionally do NOT load from model_path here — loading the smoothed
+    # checkpoint then re-applying mtq.quantize() would double-smooth the weights.
+    print("  Loading base FP16 model (unsmoothed)...")
     model = AutoModelForCausalLM.from_pretrained(
-        model_path,
+        base_model_path,
         dtype=torch.float16,
         device_map="auto",
     )
     model.eval()
 
-    # Step 2: Re-insert quantizer architecture (same config used at calibration time)
-    # dummy_loop = zero forward passes: we only want the module structure, not re-calibration
-    def dummy_loop(model):
-        pass
+    # Step 2: Warm-up calibration — 16 short samples to trigger outlier detection.
+    # These samples are generic; the which-modules-to-smooth decision is determined
+    # by the model's activation pattern, which is stable across datasets.
+    WARMUP_TEXTS = [
+        "The transformer attention mechanism computes queries, keys and values.",
+        "Buffer overflow exploits overwrite stack memory to redirect code execution.",
+        "Cybersecurity analysts investigate malware persistence and lateral movement.",
+        "CVE-2024 vulnerabilities require immediate patching to prevent exploitation.",
+        "Gradient descent minimizes loss by iterating in the negative gradient direction.",
+        "SQL injection attacks manipulate database queries through unsanitised input.",
+        "Quantization approximates floating point weights with lower-precision integers.",
+        "MITRE ATT&CK framework categorises adversary tactics, techniques and procedures.",
+        "The attention matrix scales dot products by the square root of head dimension.",
+        "Rootkits modify kernel code to hide malicious processes from the OS.",
+        "SmoothQuant migrates quantisation difficulty from activations to weights.",
+        "Privilege escalation exploits misconfigured SUID binaries or kernel vulnerabilities.",
+        "The feed-forward network in each transformer layer applies two linear projections.",
+        "Network intrusion detection systems analyse packet headers and payload patterns.",
+        "Layer normalisation stabilises training by standardising hidden state distributions.",
+        "Threat actors use living-off-the-land techniques to evade endpoint detection.",
+    ]
+    warmup_inputs = tokenizer(
+        WARMUP_TEXTS, return_tensors="pt", padding=True,
+        truncation=True, max_length=256,
+    )
+    warmup_inputs = {k: v.to(next(model.parameters()).device) for k, v in warmup_inputs.items()}
+
+    def warmup_loop(model):
+        with torch.no_grad():
+            for i in range(0, len(WARMUP_TEXTS), 4):
+                batch = {k: v[i:i+4] for k, v in warmup_inputs.items()}
+                model(**batch)
 
     try:
-        print("  Inserting INT8_SMOOTHQUANT quantizer architecture (no re-calibration)...")
-        mtq.quantize(model, config=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=dummy_loop)
-        print("  Quantizer modules inserted.")
+        print("  Running warm-up calibration (16 samples) to set up smoothing structure...")
+        mtq.quantize(model, config=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=warmup_loop)
+        print("  Warm-up done — quantizer structure initialised.")
 
-        # Step 3: Load full state dict to CPU first (NOT directly to VRAM).
-        # Loading to GPU would put a second 16GB copy in VRAM alongside the model
-        # (model=16GB + state dict=16GB = 32GB > A10's 24GB → OOM).
-        # load_state_dict() copies each tensor to the parameter's existing device
-        # incrementally, so peak VRAM overhead is ~1 tensor at a time.
-        print("  Loading calibrated quantizer state to CPU RAM...")
+        # Step 3: Load saved state dict to CPU RAM, then copy to GPU incrementally.
+        # This avoids the VRAM OOM (model 16GB + state dict 16GB = 32GB > 24GB limit).
+        print("  Loading saved SQ calibration state to CPU RAM...")
         saved_state = load_file(f"{model_path}/model.safetensors", device="cpu")
         quant_keys = sum(1 for k in saved_state if "quantizer" in k)
         print(f"  State dict loaded to CPU ({quant_keys} quantizer keys). Copying to GPU...")
         missing, unexpected = model.load_state_dict(saved_state, strict=False)
-        del saved_state                          # free 16GB from CPU RAM
-        import gc; gc.collect()
-        torch.cuda.empty_cache()                 # defrag VRAM after copy
-        print(f"  Missing: {len(missing)}  Unexpected: {len(unexpected)}")
+        del saved_state
+        gc.collect()
+        torch.cuda.empty_cache()
+        print(f"  Keys — missing: {len(missing)}  unexpected: {len(unexpected)}")
         if missing:
             print(f"  WARNING: missing keys (first 3): {missing[:3]}")
-        print("  INT8 fake-quantization active (simulates INT8 accuracy in FP16 arithmetic)")
+        if unexpected:
+            print(f"  WARNING: unexpected keys (first 3): {unexpected[:3]}")
+        print("  INT8 fake-quantization active (original calibration scales restored)")
 
     except Exception as e:
-        print(f"  WARNING: mtq quantizer restore failed: {e}")
+        print(f"  WARNING: SQ restore failed: {e}")
         import traceback; traceback.print_exc()
-        print("  Falling back to smoothed FP16 — accuracy will be wrong (~25%)")
+        print("  Results will be invalid for this model.")
 
     return model, tokenizer
 
