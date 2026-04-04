@@ -18,7 +18,7 @@ os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 # ---------------------------------------------------------------------------
 MERGED_MODEL = "./outputs/cybersec_analyst_merged_fp16/"
-CALIB_JSONL  = "./data/dacs_calib_512.jsonl"
+CALIB_JSONL  = "./outputs/dacs_calib_512.jsonl"
 OUTPUT_PATH  = "./outputs/cyber_fp8_c3/"
 MAX_LENGTH   = 512
 CALIB_BATCH  = 4   # mini-batch size — avoids OOM from batch×seq_len² activations
@@ -31,12 +31,20 @@ def main():
     print(" Activity 2C — FP8  |  Calibration: C3 (DACS — PROPOSED)")
     print("=" * 60)
 
-    if not os.path.exists(CALIB_JSONL):
-        print(f"ERROR: {CALIB_JSONL} not found. Run prepare_dacs_calib.py first.")
-        raise FileNotFoundError(CALIB_JSONL)
+    calib_path = CALIB_JSONL
+    if not os.path.exists(calib_path):
+        fallback = "./data/dacs_calib_512.jsonl"
+        if os.path.exists(fallback):
+            print(f"  NOTE: {calib_path} not found — using committed copy at {fallback}")
+            print(f"  To regenerate from source: python code/prepare_dacs_calib.py")
+            calib_path = fallback
+        else:
+            print(f"ERROR: Calibration file not found at {calib_path} or {fallback}")
+            print("  Run: python code/prepare_dacs_calib.py")
+            raise FileNotFoundError(calib_path)
 
     print(f"[1/4] Loading DACS calibration data...")
-    with open(CALIB_JSONL) as f:
+    with open(calib_path) as f:
         calib_texts = [json.loads(line)["text"] for line in f]
     print(f"  Loaded {len(calib_texts)} DACS samples")
 
