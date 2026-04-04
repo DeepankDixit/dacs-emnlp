@@ -46,6 +46,9 @@ from pathlib import Path
 from datasets import load_dataset
 from tqdm import tqdm
 
+# Reduce VRAM fragmentation — must be set before any CUDA allocation
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 # ---------------------------------------------------------------------------
 # Format detection
 # ---------------------------------------------------------------------------
@@ -272,8 +275,21 @@ def load_sq_model(model_path: str,
         saved_state = load_file(f"{model_path}/model.safetensors", device="cpu")
         quant_keys = sum(1 for k in saved_state if "quantizer" in k)
         print(f"  State dict loaded to CPU ({quant_keys} quantizer keys). Copying to GPU...")
-        missing, unexpected = model.load_state_dict(saved_state, strict=False)
-        del saved_state
+        # load_state_dict with assign=True preserves the tensor device from saved_state.
+        # Since saved_state is on CPU but model is on GPU, we must copy tensors to the
+        # correct device before loading. We do this lazily: load strict=False (so missing
+        # quantizer placeholders don't error), then move key-by-key if needed.
+        # For lm_head.weight and model.norm.weight the warning "non-meta parameter" occurs
+        # because device_map="auto" may place them on a different device. We explicitly
+        # remap each tensor to the target parameter's device.
+        model_devices = {name: p.device for name, p in model.named_parameters()}
+        model_devices.update({name: b.device for name, b in model.named_buffers()})
+        remapped_state = {}
+        for k, v in saved_state.items():
+            target_device = model_devices.get(k, next(model.parameters()).device)
+            remapped_state[k] = v.to(target_device)
+        missing, unexpected = model.load_state_dict(remapped_state, strict=False)
+        del saved_state, remapped_state
         gc.collect()
         torch.cuda.empty_cache()
         print(f"  Keys — missing: {len(missing)}  unexpected: {len(unexpected)}")
@@ -447,7 +463,8 @@ def evaluate_wmdp_cyber(
             prompt,
             return_tensors="pt",
             truncation=True,
-            max_length=2048,
+            max_length=512,   # 512 keeps logit tensor ≈131 MB (vs 512 MB at 2048)
+                               # 5-shot WMDP prompts are ~200–350 tokens so nothing is cut
         ).to(next(model.parameters()).device)
 
         outputs = model(**inputs)
