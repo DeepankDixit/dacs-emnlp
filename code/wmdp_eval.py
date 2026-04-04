@@ -217,13 +217,19 @@ def load_sq_model(model_path: str):
         mtq.quantize(model, config=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=dummy_loop)
         print("  Quantizer modules inserted.")
 
-        # Step 3: Load full state dict — overwrites dummy values with saved calibration
-        print("  Loading calibrated quantizer state from checkpoint...")
-        device = str(next(model.parameters()).device)
-        saved_state = load_file(f"{model_path}/model.safetensors", device=device)
-        missing, unexpected = model.load_state_dict(saved_state, strict=False)
+        # Step 3: Load full state dict to CPU first (NOT directly to VRAM).
+        # Loading to GPU would put a second 16GB copy in VRAM alongside the model
+        # (model=16GB + state dict=16GB = 32GB > A10's 24GB → OOM).
+        # load_state_dict() copies each tensor to the parameter's existing device
+        # incrementally, so peak VRAM overhead is ~1 tensor at a time.
+        print("  Loading calibrated quantizer state to CPU RAM...")
+        saved_state = load_file(f"{model_path}/model.safetensors", device="cpu")
         quant_keys = sum(1 for k in saved_state if "quantizer" in k)
-        print(f"  Quantizer buffers loaded: {quant_keys} keys")
+        print(f"  State dict loaded to CPU ({quant_keys} quantizer keys). Copying to GPU...")
+        missing, unexpected = model.load_state_dict(saved_state, strict=False)
+        del saved_state                          # free 16GB from CPU RAM
+        import gc; gc.collect()
+        torch.cuda.empty_cache()                 # defrag VRAM after copy
         print(f"  Missing: {len(missing)}  Unexpected: {len(unexpected)}")
         if missing:
             print(f"  WARNING: missing keys (first 3): {missing[:3]}")
