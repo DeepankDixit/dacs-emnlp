@@ -269,27 +269,24 @@ def load_sq_model(model_path: str,
         mtq.quantize(model, config=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=warmup_loop)
         print("  Warm-up done — quantizer structure initialised.")
 
-        # Step 3: Load saved state dict to CPU RAM, then copy to GPU incrementally.
-        # This avoids the VRAM OOM (model 16GB + state dict 16GB = 32GB > 24GB limit).
+        # Free warm-up inputs and flush activation caches BEFORE loading state dict.
+        # The warm-up forward passes leave ~hundreds of MB in the CUDA allocator cache.
+        # On a 22 GB A10 with ~21.7 GB occupied by the quantized model, every MB counts.
+        del warmup_inputs
+        gc.collect()
+        torch.cuda.empty_cache()
+        print(f"  VRAM after cache flush: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+
+        # Step 3: Load saved state dict to CPU RAM, then use load_state_dict() which
+        # does in-place copy_ per tensor (CPU→GPU memcopy, no new GPU allocation).
+        # DO NOT move tensors to GPU before calling load_state_dict — that would hold
+        # the full 16 GB checkpoint in VRAM simultaneously with the model (→ OOM).
         print("  Loading saved SQ calibration state to CPU RAM...")
         saved_state = load_file(f"{model_path}/model.safetensors", device="cpu")
         quant_keys = sum(1 for k in saved_state if "quantizer" in k)
-        print(f"  State dict loaded to CPU ({quant_keys} quantizer keys). Copying to GPU...")
-        # load_state_dict with assign=True preserves the tensor device from saved_state.
-        # Since saved_state is on CPU but model is on GPU, we must copy tensors to the
-        # correct device before loading. We do this lazily: load strict=False (so missing
-        # quantizer placeholders don't error), then move key-by-key if needed.
-        # For lm_head.weight and model.norm.weight the warning "non-meta parameter" occurs
-        # because device_map="auto" may place them on a different device. We explicitly
-        # remap each tensor to the target parameter's device.
-        model_devices = {name: p.device for name, p in model.named_parameters()}
-        model_devices.update({name: b.device for name, b in model.named_buffers()})
-        remapped_state = {}
-        for k, v in saved_state.items():
-            target_device = model_devices.get(k, next(model.parameters()).device)
-            remapped_state[k] = v.to(target_device)
-        missing, unexpected = model.load_state_dict(remapped_state, strict=False)
-        del saved_state, remapped_state
+        print(f"  State dict loaded to CPU ({quant_keys} quantizer keys). Applying in-place copy...")
+        missing, unexpected = model.load_state_dict(saved_state, strict=False)
+        del saved_state
         gc.collect()
         torch.cuda.empty_cache()
         print(f"  Keys — missing: {len(missing)}  unexpected: {len(unexpected)}")
