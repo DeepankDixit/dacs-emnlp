@@ -166,30 +166,73 @@ def load_awq_model(model_path: str):
 
 def load_sq_model(model_path: str):
     """
-    Load SQ INT8 model using modelopt to restore quantization hooks.
-    Without modelopt, INT8 weights load without scaling → garbage output.
+    Load SQ INT8 model correctly.
+
+    WHY THIS IS COMPLEX:
+      The SQ scripts used mtq.quantize() then model.save_pretrained().
+      HuggingFace's save_pretrained() writes NO quantization metadata to config.json —
+      it serialises whatever buffers exist on the model at save time.
+      So the saved checkpoint contains:
+        - Smoothed FP16 weights  (W * s, where s is the per-channel migration factor)
+        - Quantizer buffers      (_amax, _pre_quant_scale) as extra safetensors keys
+        - config.json with zero quantization info (plain Llama config)
+
+      Loading naively gives smoothed weights but drops quantizer buffers (UNEXPECTED).
+      At inference: X @ (W*s) instead of (X/s) @ (W*s)  →  garbage output, ~25%.
+
+      Fix:
+        1. Load model in FP16 (gets smoothed weights)
+        2. Apply mtq.quantize() with a DUMMY forward loop — inserts quantizer module
+           structure without re-calibrating (zero forward passes)
+        3. Load full state dict — overwrites dummy quantizer buffers with saved
+           calibrated amax/pre_quant_scale values
+        4. Inference runs with fake INT8 (quantize→dequantize in FP16 arithmetic),
+           correctly simulating INT8 accuracy without TensorRT
     """
     try:
         import modelopt.torch.quantization as mtq
         from transformers import AutoModelForCausalLM, AutoTokenizer
-    except ImportError:
-        raise ImportError("nvidia-modelopt not installed. Run: pip install nvidia-modelopt[hf]")
+        from safetensors.torch import load_file
+    except ImportError as e:
+        raise ImportError(f"Missing dependency: {e}")
 
-    print(f"  Loading SQ INT8 model via modelopt restore: {model_path}")
+    print(f"  Loading SQ INT8 model (mtq.quantize + load_state_dict): {model_path}")
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-    # Load base architecture in FP16, then restore quantization
+    # Step 1: Load base model (smoothed weights load correctly; quantizer buffers dropped)
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         dtype=torch.float16,
         device_map="auto",
     )
-    # Restore modelopt quantization state (re-applies INT8 hooks)
+    model.eval()
+
+    # Step 2: Re-insert quantizer architecture (same config used at calibration time)
+    # dummy_loop = zero forward passes: we only want the module structure, not re-calibration
+    def dummy_loop(model):
+        pass
+
     try:
-        mtq.restore(model, model_path)
-        print("  modelopt quantization state restored (INT8 hooks active)")
+        print("  Inserting INT8_SMOOTHQUANT quantizer architecture (no re-calibration)...")
+        mtq.quantize(model, config=mtq.INT8_SMOOTHQUANT_CFG, forward_loop=dummy_loop)
+        print("  Quantizer modules inserted.")
+
+        # Step 3: Load full state dict — overwrites dummy values with saved calibration
+        print("  Loading calibrated quantizer state from checkpoint...")
+        device = str(next(model.parameters()).device)
+        saved_state = load_file(f"{model_path}/model.safetensors", device=device)
+        missing, unexpected = model.load_state_dict(saved_state, strict=False)
+        quant_keys = sum(1 for k in saved_state if "quantizer" in k)
+        print(f"  Quantizer buffers loaded: {quant_keys} keys")
+        print(f"  Missing: {len(missing)}  Unexpected: {len(unexpected)}")
+        if missing:
+            print(f"  WARNING: missing keys (first 3): {missing[:3]}")
+        print("  INT8 fake-quantization active (simulates INT8 accuracy in FP16 arithmetic)")
+
     except Exception as e:
-        print(f"  WARNING: mtq.restore failed ({e}) — running in FP16 fallback mode")
+        print(f"  WARNING: mtq quantizer restore failed: {e}")
+        import traceback; traceback.print_exc()
+        print("  Falling back to smoothed FP16 — accuracy will be wrong (~25%)")
 
     return model, tokenizer
 
