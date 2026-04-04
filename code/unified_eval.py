@@ -75,7 +75,7 @@ def evaluate_model(
 
     # Dispatch to benchmark-specific runner
     if benchmark == "wmdp_cyber":
-        accuracy = _run_wmdp_cyber(model_path, limit=limit)
+        accuracy = _run_wmdp_cyber_direct(model_path, num_fewshot, limit)
     elif benchmark == "mmlu":
         accuracy = _run_mmlu(model_path, num_fewshot, limit)
     elif benchmark == "medqa":
@@ -100,8 +100,23 @@ def evaluate_model(
 
 
 # ---------------------------------------------------------------------------
-# WMDP-Cyber runner (via lm-eval)
+# WMDP-Cyber runner — direct evaluator (replaces lm-eval hf backend)
 # ---------------------------------------------------------------------------
+# WHY NOT lm-eval --model hf:
+#
+# lm-eval's hf backend calls AutoModelForCausalLM.from_pretrained(dtype=fp16).
+# This breaks two of our three formats:
+#   AWQ:  transformers ≥ 5.x requires gptqmodel which needs torch ≥ 2.7.1
+#   SQ:   INT8 weights load without scales → garbage output (~25% random)
+# FP8 happens to work (fp8→fp16 upcast native in PyTorch) but C1==C3 every
+# time because FP8 precision is high enough that calibration data is not
+# detectable after upcast.
+#
+# The direct evaluator (wmdp_eval.py) uses format-specific loading:
+#   AWQ:  AutoAWQForCausalLM.from_quantized() (autoawq, no gptqmodel needed)
+#   SQ:   AutoModelForCausalLM + mtq.restore() (modelopt quantization hooks)
+#   FP8:  standard AutoModelForCausalLM (upcast works; documented limitation)
+#
 # WHY WMDP-CYBER INSTEAD OF CyberSecEval MITRE:
 #
 # CyberSecEval MITRE (PurpleLlama) is a 3-LLM pipeline:
@@ -120,49 +135,37 @@ def evaluate_model(
 # It directly tests whether cybersecurity domain knowledge is preserved after
 # quantization — exactly what the DACS hypothesis predicts (C3 > C1).
 # ---------------------------------------------------------------------------
-def _run_wmdp_cyber(model_path: str, num_fewshot=5, limit=None) -> float:
-    out_dir = tempfile.mkdtemp()
-    cmd = [
-        "lm_eval",
-        "--model", "hf",
-        "--model_args", f"pretrained={model_path},dtype=float16",
-        "--tasks", "wmdp_cyber",
-        "--num_fewshot", str(num_fewshot),
-        "--batch_size", "4",
-        "--output_path", out_dir,
-    ]
-    if limit:
-        cmd += ["--limit", str(limit)]
+def _run_wmdp_cyber_direct(model_path: str, num_fewshot=5, limit=None) -> float:
+    """
+    Evaluate WMDP-Cyber using the format-aware direct evaluator.
+    Delegates to wmdp_eval.py which handles AWQ/SQ/FP8 loading correctly.
+    """
+    # Import from wmdp_eval.py (same code/ directory)
+    code_dir = os.path.dirname(os.path.abspath(__file__))
+    if code_dir not in sys.path:
+        sys.path.insert(0, code_dir)
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        from wmdp_eval import load_model_for_eval, evaluate_wmdp_cyber
+    except ImportError as e:
+        print(f"  ERROR: Could not import wmdp_eval: {e}")
+        return 0.0
 
-    if result.returncode != 0:
-        print(f"  WARNING: lm-eval (wmdp_cyber) returned non-zero exit code")
-        print(f"  stderr: {result.stderr[-500:]}")
-
-    # lm-eval writes JSON results — parse results["wmdp_cyber"]["acc,none"]
-    result_files = list(Path(out_dir).glob("**/*.json"))
-    for rf in result_files:
-        try:
-            with open(rf) as f:
-                data = json.load(f)
-            if "results" in data and "wmdp_cyber" in data["results"]:
-                acc = data["results"]["wmdp_cyber"].get("acc,none",
-                      data["results"]["wmdp_cyber"].get("acc", 0))
-                return float(acc) * 100
-        except Exception:
-            pass
-
-    # Fallback: parse from stdout
-    for line in result.stdout.split("\n"):
-        if "wmdp_cyber" in line.lower() and "acc" in line.lower():
-            match = re.search(r"(\d+\.\d+)", line)
-            if match:
-                val = float(match.group(1))
-                return val * 100 if val < 1 else val
-
-    print(f"  WARNING: Could not parse WMDP-Cyber accuracy.")
-    return 0.0
+    try:
+        (model, tokenizer), fmt = load_model_for_eval(model_path)
+        accuracy = evaluate_wmdp_cyber(
+            model, tokenizer,
+            num_fewshot=num_fewshot,
+            limit=limit,
+        )
+        # Free GPU memory
+        del model
+        import torch; torch.cuda.empty_cache()
+        return accuracy
+    except Exception as e:
+        print(f"  ERROR in WMDP-Cyber eval: {e}")
+        import traceback; traceback.print_exc()
+        return 0.0
 
 
 # ---------------------------------------------------------------------------

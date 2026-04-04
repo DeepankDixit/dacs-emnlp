@@ -29,7 +29,14 @@ tokenizers==0.22.2               # Fast tokenizer backend
 safetensors==0.7.0               # Model checkpoint format
 
 # ── Evaluation ──────────────────────────────────────────────────────────────
-lm-eval==0.4.11                  # MMLU + WMDP-Cyber (wmdp_cyber task)
+lm-eval==0.4.11                  # MMLU (wmdp_cyber now evaluated via wmdp_eval.py)
+
+# NOTE: gptqmodel is NOT listed here.  transformers ≥ 5.x requires gptqmodel
+# to load AWQ models via AutoModelForCausalLM, but gptqmodel itself requires
+# torch ≥ 2.7.1 (we use 2.6.0+cu124 which is the highest version compatible
+# with nvidia-modelopt 0.42.0).  This version conflict is unresolvable on this
+# stack.  AWQ models are loaded directly via autoawq (AutoAWQForCausalLM) in
+# wmdp_eval.py, bypassing transformers' AWQ quantizer entirely.
 
 # ── General utilities ───────────────────────────────────────────────────────
 numpy==2.2.6
