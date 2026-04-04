@@ -18,7 +18,7 @@ os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 # ---------------------------------------------------------------------------
 MERGED_MODEL = "./outputs/cybersec_analyst_merged_fp16/"
-CALIB_JSONL  = "./outputs/dacs_calib_512.jsonl"
+CALIB_JSONL  = "./data/dacs_calib_512.jsonl"
 OUTPUT_PATH  = "./outputs/cyber_fp8_c3/"
 MAX_LENGTH   = 512
 CALIB_BATCH  = 4   # mini-batch size — avoids OOM from batch×seq_len² activations

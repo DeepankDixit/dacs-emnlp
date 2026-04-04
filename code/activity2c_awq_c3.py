@@ -22,7 +22,7 @@ os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 # ---------------------------------------------------------------------------
 MERGED_MODEL = "./outputs/cybersec_analyst_merged_fp16/"
-CALIB_JSONL  = "./outputs/dacs_calib_512.jsonl"
+CALIB_JSONL  = "./data/dacs_calib_512.jsonl"
 OUTPUT_PATH  = "./outputs/cyber_int4_awq_c3/"
 # AWQ holds ALL calibration activations per layer simultaneously during scale
 # search — it cannot mini-batch. Two constraints must both be satisfied:

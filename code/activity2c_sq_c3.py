@@ -16,7 +16,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # ---------------------------------------------------------------------------
 MERGED_MODEL = "./outputs/cybersec_analyst_merged_fp16/"
-CALIB_JSONL  = "./outputs/dacs_calib_512.jsonl"
+CALIB_JSONL  = "./data/dacs_calib_512.jsonl"
 OUTPUT_PATH  = "./outputs/cyber_int8_sq_c3/"
 MAX_LENGTH   = 512
 CALIB_BATCH  = 8      # mini-batch size for forward pass — avoids CUDA OOM on A10G
