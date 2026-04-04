@@ -1,7 +1,7 @@
 """
 DACS Project — Activity 2: Evaluate All 9 Quantized Models
 ===========================================================
-Run CyberSecEval 4 and MMLU on all 9 models produced by Activities 2A/2B/2C.
+Run WMDP-Cyber and MMLU on all 9 models produced by Activities 2A/2B/2C.
 Results are cached — re-running the same model/benchmark is instant.
 All scores are saved to ./results/activity2_all_results.json
 Record every result in DACS_Results_Capture_Log.docx as you go.
@@ -10,8 +10,8 @@ Usage:
     # Evaluate all 9 models on both benchmarks (full run)
     python evaluate_all.py
 
-    # Evaluate only C1 and C3 on CyberSecEval (early hypothesis check)
-    python evaluate_all.py --models c1 c3 --benchmarks cyberseceval
+    # Evaluate only C1 and C3 on WMDP-Cyber (early hypothesis check)
+    python evaluate_all.py --models c1 c3 --benchmarks wmdp_cyber
 
     # Quick test with 20-question limit (for debugging the pipeline)
     python evaluate_all.py --limit 20
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--benchmarks", nargs="+", default=["all"],
-        choices=["all", "cyberseceval", "mmlu"],
+        choices=["all", "wmdp_cyber", "mmlu"],
         help="Benchmarks to run"
     )
     parser.add_argument(
