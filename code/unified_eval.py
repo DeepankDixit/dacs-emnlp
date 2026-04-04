@@ -169,51 +169,48 @@ def _run_wmdp_cyber_direct(model_path: str, num_fewshot=5, limit=None) -> float:
 
 
 # ---------------------------------------------------------------------------
-# MMLU runner (via lm-eval)
+# MMLU runner — direct evaluator (replaces lm-eval hf backend)
+# ---------------------------------------------------------------------------
+# WHY NOT lm-eval --model hf FOR MMLU:
+#
+# Identical problem to WMDP-Cyber: lm-eval's hf backend calls
+# AutoModelForCausalLM.from_pretrained(dtype=float16).  This breaks:
+#   AWQ:  gptqmodel version conflict (torch 2.6 vs ≥2.7.1 required)
+#   SQ:   INT8 weights load without calibration scales → ~25% random output
+#
+# The format-aware evaluator in wmdp_eval.py handles all three formats
+# correctly and now includes evaluate_mmlu() using the same logit-based
+# MCQ scoring approach (cais/mmlu, all subjects, test split, 14K questions).
 # ---------------------------------------------------------------------------
 def _run_mmlu(model_path: str, num_fewshot=5, limit=None) -> float:
-    out_dir = tempfile.mkdtemp()
-    cmd = [
-        "lm_eval",
-        "--model", "hf",
-        "--model_args", f"pretrained={model_path},dtype=float16",
-        "--tasks", "mmlu",
-        "--num_fewshot", str(num_fewshot),
-        "--batch_size", "auto",
-        "--output_path", out_dir,
-    ]
-    if limit:
-        cmd += ["--limit", str(limit)]
+    """
+    Evaluate MMLU using the format-aware direct evaluator.
+    Delegates to wmdp_eval.py which handles AWQ/SQ/FP8 loading correctly.
+    """
+    code_dir = os.path.dirname(os.path.abspath(__file__))
+    if code_dir not in sys.path:
+        sys.path.insert(0, code_dir)
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        from wmdp_eval import load_model_for_eval, evaluate_mmlu
+    except ImportError as e:
+        print(f"  ERROR: Could not import wmdp_eval: {e}")
+        return 0.0
 
-    if result.returncode != 0:
-        print(f"  WARNING: lm-eval returned non-zero exit code")
-        print(f"  stderr: {result.stderr[-500:]}")
-
-    # lm-eval writes JSON results — parse that
-    result_files = list(Path(out_dir).glob("**/*.json"))
-    for rf in result_files:
-        try:
-            with open(rf) as f:
-                data = json.load(f)
-            # lm-eval result format
-            if "results" in data and "mmlu" in data["results"]:
-                acc = data["results"]["mmlu"].get("acc,none",
-                      data["results"]["mmlu"].get("acc", 0))
-                return float(acc) * 100
-        except Exception:
-            pass
-
-    # Fallback: parse from stdout
-    for line in result.stdout.split("\n"):
-        if "mmlu" in line.lower() and "acc" in line.lower():
-            match = re.search(r"(\d+\.\d+)", line)
-            if match:
-                return float(match.group(1)) * 100 if float(match.group(1)) < 1 else float(match.group(1))
-
-    print(f"  WARNING: Could not parse MMLU accuracy.")
-    return 0.0
+    try:
+        (model, tokenizer), fmt = load_model_for_eval(model_path)
+        accuracy = evaluate_mmlu(
+            model, tokenizer,
+            num_fewshot=num_fewshot,
+            limit=limit,
+        )
+        del model
+        import torch; torch.cuda.empty_cache()
+        return accuracy
+    except Exception as e:
+        print(f"  ERROR in MMLU eval: {e}")
+        import traceback; traceback.print_exc()
+        return 0.0
 
 
 # ---------------------------------------------------------------------------

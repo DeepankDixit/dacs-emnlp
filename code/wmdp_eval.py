@@ -484,6 +484,124 @@ def evaluate_wmdp_cyber(
 
 
 # ---------------------------------------------------------------------------
+# MMLU evaluation (same logit-based MCQ approach as WMDP-Cyber)
+# ---------------------------------------------------------------------------
+MMLU_HF_DATASET = "cais/mmlu"
+MMLU_HF_CONFIG  = "all"        # aggregates all 57 subjects into one split
+MMLU_SPLIT      = "test"       # 14,042 questions
+
+# Five generic few-shot examples drawn from different MMLU subjects so the
+# model sees the expected Q/A format before the real questions.
+MMLU_FEWSHOT_EXAMPLES = [
+    {
+        "question": "The Hohfeld analysis of rights distinguishes between claim-rights and which of the following?",
+        "choices": ["Duties", "Liberties", "Powers", "All of the above"],
+        "answer": 3,
+    },
+    {
+        "question": "Which of the following statements is correct regarding the role of mitochondria?",
+        "choices": [
+            "Mitochondria produce ATP through glycolysis in the cytoplasm",
+            "Mitochondria are the primary site of oxidative phosphorylation",
+            "Mitochondria synthesise fatty acids from acetyl-CoA",
+            "Mitochondria contain no DNA of their own",
+        ],
+        "answer": 1,
+    },
+    {
+        "question": "What is the time complexity of binary search on a sorted array of n elements?",
+        "choices": ["O(n)", "O(n log n)", "O(log n)", "O(1)"],
+        "answer": 2,
+    },
+    {
+        "question": "Which amendment to the U.S. Constitution prohibits cruel and unusual punishment?",
+        "choices": ["Fourth", "Sixth", "Eighth", "Fourteenth"],
+        "answer": 2,
+    },
+    {
+        "question": "In macroeconomics, the quantity theory of money states that MV = PT. What does V represent?",
+        "choices": ["Volume of goods", "Velocity of money", "Value of transactions", "Variance of prices"],
+        "answer": 1,
+    },
+]
+
+
+def format_mmlu_fewshot_prompt(num_fewshot: int = 5) -> str:
+    """Build few-shot prefix from hand-written MMLU examples."""
+    prompt = ""
+    for ex in MMLU_FEWSHOT_EXAMPLES[:num_fewshot]:
+        prompt += _format_question(ex["question"], ex["choices"])
+        prompt += f"Answer: {CHOICES[ex['answer']]}\n\n"
+    return prompt
+
+
+@torch.no_grad()
+def evaluate_mmlu(
+    model,
+    tokenizer,
+    num_fewshot: int = 5,
+    limit: int = None,
+    batch_size: int = 1,
+) -> float:
+    """
+    Evaluate model on MMLU (all 57 subjects, 14,042 test questions).
+    Uses the same logit-based MCQ scoring as evaluate_wmdp_cyber().
+
+    WHY NOT lm-eval --model hf FOR MMLU:
+      Identical issue to WMDP-Cyber: lm-eval's hf backend calls
+      AutoModelForCausalLM.from_pretrained(dtype=float16) which breaks
+      AWQ (gptqmodel version conflict) and SQ (scales not applied).
+      This function uses the format-aware loaders from this module.
+
+    Dataset: cais/mmlu, config="all", split="test"
+    Metric:  accuracy (%) averaged across all questions (macro-average).
+    """
+    print(f"  Loading MMLU dataset from HuggingFace (cais/mmlu, all subjects)...")
+    dataset = load_dataset(MMLU_HF_DATASET, MMLU_HF_CONFIG, split=MMLU_SPLIT)
+    if limit:
+        dataset = dataset.select(range(min(limit, len(dataset))))
+
+    total = len(dataset)
+    print(f"  {total} questions  |  {num_fewshot}-shot  |  device: {next(model.parameters()).device}")
+
+    fewshot_prefix = format_mmlu_fewshot_prompt(num_fewshot)
+    choice_ids = get_choice_token_ids(tokenizer)  # reuse from WMDP section
+
+    correct = 0
+    model.eval()
+
+    for i, item in enumerate(tqdm(dataset, desc="  MMLU")):
+        question   = item["question"]
+        choices    = item["choices"]
+        answer_idx = item["answer"]   # int 0–3
+
+        prompt = fewshot_prefix + _format_question(question, choices) + "Answer:"
+
+        inputs = tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,   # same budget as WMDP-Cyber
+        ).to(next(model.parameters()).device)
+
+        outputs = model(**inputs)
+        last_logits = outputs.logits[0, -1, :]   # (vocab_size,)
+
+        scores = []
+        for tok_ids in choice_ids:
+            score = max(last_logits[tid].item() for tid in tok_ids)
+            scores.append(score)
+
+        pred = scores.index(max(scores))
+        if pred == answer_idx:
+            correct += 1
+
+    accuracy = correct / total * 100
+    print(f"\n  MMLU accuracy: {correct}/{total} = {accuracy:.2f}%")
+    return accuracy
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def main():
