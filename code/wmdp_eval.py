@@ -605,8 +605,12 @@ def evaluate_mmlu(
 # CLI
 # ---------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate a DACS quantized model on WMDP-Cyber")
+    parser = argparse.ArgumentParser(
+        description="Evaluate a DACS quantized model on WMDP-Cyber or MMLU"
+    )
     parser.add_argument("model_path", help="Path to quantized model directory")
+    parser.add_argument("--task",      choices=["wmdp_cyber", "mmlu"], default="wmdp_cyber",
+                        help="Benchmark to run (default: wmdp_cyber)")
     parser.add_argument("--num_fewshot", type=int, default=5)
     parser.add_argument("--limit",       type=int, default=None, help="Max questions (test mode)")
     parser.add_argument("--format",      choices=["awq", "sq_int8", "fp8", "fp16", "auto"],
@@ -614,7 +618,7 @@ def main():
     args = parser.parse_args()
 
     print(f"\n{'='*60}")
-    print(f" WMDP-Cyber Direct Evaluator")
+    print(f" DACS Direct Evaluator — {args.task.upper()}")
     print(f"{'='*60}")
     print(f"  Model:  {args.model_path}")
 
@@ -632,14 +636,25 @@ def main():
         else:
             model, tokenizer = load_fp16_model(args.model_path)
 
-    accuracy = evaluate_wmdp_cyber(
-        model, tokenizer,
-        num_fewshot=args.num_fewshot,
-        limit=args.limit,
-    )
+    if args.task == "mmlu":
+        accuracy = evaluate_mmlu(
+            model, tokenizer,
+            num_fewshot=args.num_fewshot,
+            limit=args.limit,
+        )
+        baseline = 25.0
+    else:
+        accuracy = evaluate_wmdp_cyber(
+            model, tokenizer,
+            num_fewshot=args.num_fewshot,
+            limit=args.limit,
+        )
+        baseline = 25.0
 
     print(f"\n  Final result: {accuracy:.2f}%  ({fmt.upper()})")
-    print(f"  (Random chance baseline: 25.00%)")
+    print(f"  (Random chance baseline: {baseline:.2f}%)")
+    # Print a machine-parseable line for subprocess caller
+    print(f"RESULT:{accuracy:.4f}")
 
 
 if __name__ == "__main__":

@@ -184,33 +184,46 @@ def _run_wmdp_cyber_direct(model_path: str, num_fewshot=5, limit=None) -> float:
 # ---------------------------------------------------------------------------
 def _run_mmlu(model_path: str, num_fewshot=5, limit=None) -> float:
     """
-    Evaluate MMLU using the format-aware direct evaluator.
-    Delegates to wmdp_eval.py which handles AWQ/SQ/FP8 loading correctly.
+    Evaluate MMLU using the format-aware direct evaluator via SUBPROCESS.
+
+    WHY SUBPROCESS (not in-process import):
+      In a 9-model batch, modelopt's CUDA hooks from SQ INT8 models do not
+      release cleanly when an exception occurs (e.g. OOM). The GPU allocator
+      retains ~21 GB after an SQ OOM, causing the next model (FP8) to fall
+      back to CPU inference (~12 s/it instead of ~0.3 s/it).
+
+      Running each model as a fresh subprocess guarantees:
+        - Clean GPU state for every model
+        - modelopt hooks fully unloaded between runs
+        - No cascading OOM from one format to the next
     """
     code_dir = os.path.dirname(os.path.abspath(__file__))
-    if code_dir not in sys.path:
-        sys.path.insert(0, code_dir)
+    script   = os.path.join(code_dir, "wmdp_eval.py")
+    python   = sys.executable
+
+    cmd = [python, script, model_path, "--task", "mmlu",
+           "--num_fewshot", str(num_fewshot)]
+    if limit:
+        cmd += ["--limit", str(limit)]
+
+    # Stream live output to terminal via tee, capture same output to file.
+    # wmdp_eval.py prints "RESULT:<float>" as the final parseable line.
+    import shlex, tempfile
+    outfile = tempfile.mktemp(suffix=".txt")
+    tee_cmd = f"{shlex.join(cmd)} 2>&1 | tee {outfile}"
+    print(f"  Spawning fresh process for clean GPU state...")
+    os.system(tee_cmd)
 
     try:
-        from wmdp_eval import load_model_for_eval, evaluate_mmlu
-    except ImportError as e:
-        print(f"  ERROR: Could not import wmdp_eval: {e}")
-        return 0.0
-
-    try:
-        (model, tokenizer), fmt = load_model_for_eval(model_path)
-        accuracy = evaluate_mmlu(
-            model, tokenizer,
-            num_fewshot=num_fewshot,
-            limit=limit,
-        )
-        del model
-        import torch; torch.cuda.empty_cache()
-        return accuracy
+        with open(outfile) as f:
+            for line in f:
+                if line.startswith("RESULT:"):
+                    return float(line.strip().split(":")[1])
     except Exception as e:
-        print(f"  ERROR in MMLU eval: {e}")
-        import traceback; traceback.print_exc()
-        return 0.0
+        print(f"  ERROR parsing result file: {e}")
+
+    print(f"  WARNING: Could not parse MMLU accuracy from subprocess output.")
+    return 0.0
 
 
 # ---------------------------------------------------------------------------
