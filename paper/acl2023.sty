@@ -1,0 +1,92 @@
+% ACL 2023 Style File
+% Based on the official ACL Anthology LaTeX template
+% For EMNLP 2026 ARR submission
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{acl2023}[2023/01/01 ACL 2023]
+
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+% \usepackage{inconsolata}  % optional, skip if not installed
+\usepackage{geometry}
+\usepackage{natbib}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{multirow}
+
+% Page layout - ACL two-column
+\geometry{
+  letterpaper,
+  top=1in,
+  bottom=1in,
+  left=1in,
+  right=1in,
+  columnsep=0.25in
+}
+
+% Two-column layout
+\twocolumn
+\setlength{\parindent}{0.25in}
+\setlength{\parskip}{0pt}
+
+% Section formatting
+\usepackage{titlesec}
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\itshape}{\thesubsubsection}{1em}{}
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+\titlespacing*{\subsection}{0pt}{8pt}{3pt}
+\titlespacing*{\subsubsection}{0pt}{6pt}{2pt}
+
+% Abstract
+\renewenvironment{abstract}{%
+  \begin{center}
+    \textbf{Abstract}
+  \end{center}
+  \begin{quote}
+}{%
+  \end{quote}
+}
+
+% Title formatting
+\makeatletter
+\renewcommand{\maketitle}{%
+  \begin{center}
+    {\LARGE\bfseries\@title\par}
+    \vspace{0.5em}
+    {\large\@author\par}
+    \vspace{0.3em}
+  \end{center}
+}
+\makeatother
+
+% Bibliography style
+\bibpunct{(}{)}{;}{a}{,}{,}
+\setlength{\bibsep}{0pt}
+
+% Hyperref setup
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!70!black,
+  citecolor=blue!70!black,
+  urlcolor=blue!70!black,
+  breaklinks=true
+}
+
+% Footnote formatting
+\setlength{\footnotesep}{5pt}
+
+% Figure/table captions
+\usepackage{caption}
+\captionsetup{font=small, labelfont=bf, skip=5pt}
+
+% Prevent widows and orphans
+\widowpenalty=10000
+\clubpenalty=10000

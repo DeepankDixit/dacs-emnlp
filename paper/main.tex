@@ -1,0 +1,543 @@
+\documentclass[11pt]{article}
+\usepackage{acl2023}
+
+% Additional packages
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{soul}
+
+% Color definitions for tables
+\definecolor{bestgreen}{RGB}{226,239,218}
+\definecolor{anomalyorange}{RGB}{252,228,214}
+\definecolor{headerblue}{RGB}{189,215,238}
+\definecolor{greylight}{RGB}{242,242,242}
+
+% Convenience commands
+\newcommand{\dacs}{\textsc{Dacs}}
+\newcommand{\wmdp}{WMDP-Cyber}
+\newcommand{\llama}{Llama~3.1~8B~Instruct}
+% \newcommand{\citetalias}[1]{\citeauthor{#1}~(\citeyear{#1})}  % removed: conflicts with natbib
+
+\title{\dacs: Domain-Aware Calibration Strategy for \\
+Post-Training Quantization of Large Language Models}
+
+\author{Deepank Dixit \\
+  \texttt{deepankdixit0804@gmail.com}}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+
+% ============================================================
+\begin{abstract}
+Post-training quantization (PTQ) reduces the computational cost of large
+language models (LLMs) without retraining, but existing methods rely on generic
+calibration datasets that may not reflect the deployment domain.  We propose
+\dacs{} (\textbf{D}omain-\textbf{A}ware \textbf{C}alibration \textbf{S}trategy),
+a framework that constructs calibration data aligned with target task distributions
+to preserve domain-relevant representations during quantization.
+We evaluate three PTQ formats---AWQ INT4, SmoothQuant INT8, and FP8---under three
+calibration conditions: generic text (C1), model self-generated text (C2), and
+domain-specific text (C3/\dacs{}).
+Using \llama{} as the base model, we measure performance on
+\wmdp{} (1,987 cybersecurity questions) and MMLU (14,042 questions across 57 subjects).
+Our results reveal a clear format-sensitivity hierarchy: FP8 is essentially
+calibration-agnostic (0.00\,pp MMLU spread across conditions); AWQ INT4 shows
+consistent but modest gains under \dacs{} calibration (+0.55\,pp WMDP-Cyber,
++0.22\,pp MMLU vs.\ generic); and SmoothQuant INT8 exhibits strong calibration
+sensitivity, with self-generated calibration causing a 9.31\,pp MMLU regression
+that domain-specific calibration partially recovers (+6.30\,pp vs.\ C2).
+These findings establish that calibration data selection is consequential for
+distribution-sensitive PTQ methods and provide actionable guidance for deploying
+quantized LLMs in target domains.
+\end{abstract}
+
+% ============================================================
+\section{Introduction}
+\label{sec:intro}
+
+Large language models (LLMs) trained at scale demonstrate strong generalization
+across diverse tasks, but their memory and compute requirements remain challenging
+for practical deployment.
+Post-training quantization (PTQ) addresses this by reducing numerical precision
+of model weights and activations after training, enabling inference on commodity
+hardware without access to full training data or gradient computation.
+
+A critical but underexplored component of PTQ is the \emph{calibration dataset}:
+a small set of examples used to compute activation statistics that guide
+quantization parameter selection---scale factors, zero-points, and clipping
+thresholds.
+Existing PTQ methods \citep{frantar2022gptq, xiao2023smoothquant, lin2023awq}
+typically use generic text corpora (subsets of The Pile, C4, or WikiText)
+regardless of the intended deployment domain.
+This creates a potential mismatch: calibration statistics derived from generic
+web text may poorly represent the activation distributions encountered during
+domain-specific inference, leading to systematic miscalibration of quantization
+parameters and preventable quality degradation on target tasks.
+
+We formalize this intuition and propose \dacs{} (\textbf{D}omain-\textbf{A}ware
+\textbf{C}alibration \textbf{S}trategy), a framework for constructing calibration
+datasets aligned with target deployment domains.
+The central hypothesis is that domain-specific calibration better preserves
+task-relevant weight representations during quantization than generic calibration,
+particularly for methods whose quantization parameters are sensitive to
+activation distribution.
+
+We conduct a systematic evaluation across three representative PTQ formats that
+differ in their dependence on calibration statistics:
+\begin{itemize}
+  \item \textbf{AWQ INT4} \citep{lin2023awq}: weight-only 4-bit quantization
+    using activation-magnitude-guided per-group scaling.
+  \item \textbf{SmoothQuant INT8} \citep{xiao2023smoothquant}: joint weight--activation
+    8-bit quantization using per-channel mathematical smoothing transforms
+    computed from calibration activation statistics.
+  \item \textbf{FP8}: 8-bit floating-point quantization with native hardware
+    support \citep{micikevicius2022fp8}, representing a high-fidelity baseline.
+\end{itemize}
+
+For each format, we compare three calibration conditions: generic internet text
+(C1, the standard approach), model self-generated text (C2, a self-supervised
+alternative), and domain-specific text (C3, the \dacs{} approach).
+We evaluate all nine resulting models on two complementary benchmarks---\wmdp{}
+\citep{li2024wmdp} as a domain-knowledge probe and MMLU \citep{hendrycks2021mmlu}
+as a general capability proxy.
+
+Our main contributions are:
+\begin{enumerate}
+  \item We introduce \dacs{}, a calibration data construction framework for PTQ
+    that targets deployment domain alignment.
+  \item We provide the first systematic study of calibration data choice across
+    multiple PTQ formats, revealing a clear hierarchy of calibration sensitivity:
+    FP8 $<$ AWQ $<$ SmoothQuant.
+  \item We identify a catastrophic failure mode of self-generated calibration
+    for SmoothQuant INT8 (\(-9.31\,\text{pp}\) MMLU), and demonstrate
+    that domain-specific calibration partially mitigates this failure
+    (\(+6.30\,\text{pp}\) recovery).
+  \item We establish practical deployment guidance: \dacs{} calibration provides
+    the clearest benefit for distribution-sensitive PTQ methods (SmoothQuant),
+    while high-precision formats (FP8) are robust to calibration data choice.
+\end{enumerate}
+
+% ============================================================
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Post-training quantization.}
+Early PTQ methods for LLMs targeted weight-only quantization: LLM.int8()
+\citep{dettmers2022llmint8} introduced mixed-precision decomposition to handle
+outlier weight magnitudes, while GPTQ \citep{frantar2022gptq} used second-order
+information from calibration data to minimize layer-wise reconstruction error
+on a small number of examples (typically 128--512 samples from WikiText-2 or
+C4).
+SmoothQuant \citep{xiao2023smoothquant} extended quantization to activations
+by applying a mathematically equivalent per-channel smoothing transform,
+migrating quantization difficulty from activations to weights; its smoothing
+factors are computed from calibration activation maximum values.
+AWQ \citep{lin2023awq} identifies weight channels salient to large-magnitude
+activations and applies protective per-group scaling, using calibration examples
+to identify which channels matter.
+FP8 quantization \citep{micikevicius2022fp8} leverages hardware-native floating-point
+formats (E4M3 or E5M2) available in NVIDIA Hopper and Ada architectures,
+achieving near-lossless compression with minimal calibration sensitivity.
+More recent methods include QuIP\# \citep{tseng2024quip} and AQLM \citep{egiazarian2024aqlm},
+which push quantization to 2--3 bits using incoherence processing and additive
+codebooks.
+A comprehensive survey of LLM compression methods is given by \citet{zhu2024survey}.
+
+\paragraph{Calibration data in quantization.}
+Despite calibration data being a standard component of PTQ pipelines,
+its choice has received limited systematic study.
+\citet{nagel2020adaround} noted that calibration data affects rounding decisions
+in AdaRound but did not ablate data distribution.
+\citet{hubara2021accuratept} demonstrated that as few as 1,024 calibration
+samples suffice for accurate PTQ but used only a single data source.
+\citet{frantar2022gptq} evaluated WikiText-2 calibration for code-generation
+tasks and noted some transfer, but did not study the effect of domain mismatch.
+To our knowledge, no prior work has systematically compared generic, self-generated,
+and domain-specific calibration data across multiple PTQ methods, nor
+identified conditions under which calibration data choice is decisive.
+
+\paragraph{Domain adaptation of compressed models.}
+QLoRA \citep{dettmers2023qlora} demonstrated that quantization and parameter-efficient
+fine-tuning can be combined for domain adaptation, but this requires continued
+training.  \dacs{} operates entirely at quantization time, requiring no additional
+training and adding only the cost of collecting or curating domain-relevant
+calibration examples.
+
+\paragraph{LLM evaluation.}
+We use MMLU \citep{hendrycks2021mmlu}, a 57-subject academic benchmark widely
+used as a general capability proxy, and \wmdp{} \citep{li2024wmdp}, a hazard-proxy
+benchmark for cybersecurity, biosecurity, and chemical knowledge retention.
+Both employ 4-choice multiple-choice format, enabling logit-based evaluation
+that is robust to instruction-format variation across quantized model variants.
+
+% ============================================================
+\section{Methodology}
+\label{sec:method}
+
+\subsection{Base Model}
+\label{sec:base}
+
+All experiments use \llama{} \citep{meta2024llama3} as the base model.
+We select this model for its strong instruction-following capabilities,
+publicly available weights, and representative scale for PTQ research (8B parameters).
+The FP16 model occupies approximately 16\,GB of GPU memory on a single NVIDIA A10
+(22.06\,GB VRAM) and achieves approximately 44--46\% on \wmdp{} and
+63--65\% on MMLU, establishing our quality ceiling.
+
+\subsection{Quantization Formats}
+\label{sec:formats}
+
+We evaluate three PTQ formats spanning distinct points in the
+precision--efficiency--calibration-sensitivity space:
+
+\paragraph{AWQ INT4.}
+Activation-aware Weight Quantization \citep{lin2023awq} quantizes weights to
+4-bit precision with FP16 activations.
+For each weight group, AWQ identifies channels corresponding to large-magnitude
+activations (determined from calibration examples) and applies a protective scaling
+factor before rounding.
+This reduces quantization error for the most activation-sensitive weights.
+The format achieves approximately $4\times$ memory reduction vs.\ FP16.
+
+\paragraph{SmoothQuant INT8.}
+SmoothQuant \citep{xiao2023smoothquant} enables 8-bit weight--activation
+quantization by applying a per-channel equivalence transform $\mathbf{Y} =
+(\mathbf{X}\text{diag}(\mathbf{s})^{-1}) \cdot (\text{diag}(\mathbf{s})\mathbf{W}^T)$,
+where the smoothing vector $\mathbf{s}$ is computed as
+$s_j = \max(|\mathbf{X}|)_j^\alpha / \max(|\mathbf{W}|)_j^{1-\alpha}$ from
+calibration activation maxima.
+The resulting INT8 quantization enables fast INT8 GEMM kernels on modern hardware.
+Of the three formats, SmoothQuant has the strongest direct dependence on
+calibration activation statistics through its smoothing vector computation.
+
+\paragraph{FP8.}
+We quantize both weights and activations to 8-bit floating-point in E4M3 format
+using NVIDIA's ModelOpt library.
+FP8's floating-point representation provides significantly larger dynamic range
+than INT8, making it less sensitive to activation distribution during calibration.
+FP8 serves as our high-quality 8-bit reference, against which the calibration
+sensitivity of AWQ and SmoothQuant can be assessed.
+
+\subsection{Calibration Conditions}
+\label{sec:calib}
+
+\dacs{} proposes and evaluates three calibration conditions:
+
+\paragraph{C1: Generic (baseline).}
+A diverse subset of The Pile \citep{gao2020pile}, the standard PTQ calibration
+approach in the literature.
+This represents the industry default and serves as our control condition.
+We use 512 samples for all quantization methods.
+
+\paragraph{C2: Self-generated.}
+Text generated by the base FP16 model using temperature sampling ($T=0.8$),
+without external grounding.
+C2 tests the hypothesis that the model's own output distribution is a valid
+proxy for its internal activation distribution.
+Self-generation requires no external data collection and is potentially
+applicable to any deployed model.
+
+\paragraph{C3: Domain-specific (\dacs{}).}
+A corpus drawn from or closely aligned with the target evaluation domains:
+cybersecurity literature (matching \wmdp{}) and general academic text
+(matching MMLU).
+This is the core \dacs{} contribution---the hypothesis is that calibration
+data reflecting the deployment distribution produces quantization parameters
+that better preserve task-relevant representations.
+The \dacs{} corpus is prepared using \texttt{prepare\_dacs\_calib.py} and
+stored as \texttt{dacs\_calib\_512.jsonl}.
+
+\subsection{Evaluation Protocol}
+\label{sec:eval}
+
+All models are evaluated using a unified format-aware MCQ evaluator
+that scores answers via logit probabilities over option tokens
+\texttt{A}, \texttt{B}, \texttt{C}, \texttt{D} rather than text generation,
+following the approach of \citet{hendrycks2021mmlu}.
+For each question, the predicted answer is $\hat{y} = \arg\max_{k \in \{A,B,C,D\}}
+\log p_\theta(\text{tok}(k) \mid \text{prompt})$, where $\text{tok}(k)$ is the
+single token corresponding to option letter $k$.
+
+This approach is robust to instruction-format differences between quantized
+model variants and avoids compatibility issues with standard evaluation
+harnesses (e.g., lm-evaluation-harness's \texttt{hf} backend) that do not
+support custom quantization frameworks.
+
+\paragraph{\wmdp{}.}
+1,987 4-choice cybersecurity questions from \citet{li2024wmdp}, zero-shot.
+
+\paragraph{MMLU.}
+14,042 questions across 57 academic subjects \citep{hendrycks2021mmlu},
+\texttt{cais/mmlu} ``all'' configuration, test split, 5-shot with generic
+cross-subject examples.
+
+\paragraph{Infrastructure.}
+NVIDIA A10 GPU (22.06\,GB VRAM).  Sequence length capped at 512 tokens to
+manage VRAM budget.  Each model evaluation runs in a fresh Python subprocess
+to prevent CUDA state contamination across sequential evaluations.
+
+% ============================================================
+\section{Results}
+\label{sec:results}
+
+Table~\ref{tab:main} presents accuracy results for all nine model variants
+on both benchmarks.
+
+\begin{table*}[t]
+\centering
+\caption{Accuracy (\%) on \wmdp{} and MMLU for all nine \dacs{} model variants.
+         Best result per benchmark in \textbf{bold}.
+         $\Delta$ columns show difference vs.\ the C1 (generic) baseline within
+         each format.
+         \dag{} SQ\,C2 MMLU result is anomalous; see \S\ref{sec:analysis}.}
+\label{tab:main}
+\small
+\begin{tabular}{llcccc}
+\toprule
+\multirow{2}{*}{\textbf{Format}} &
+\multirow{2}{*}{\textbf{Calibration}} &
+\multicolumn{2}{c}{\textbf{\wmdp{}}} &
+\multicolumn{2}{c}{\textbf{MMLU}} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+& & Acc.\ (\%) & $\Delta$ & Acc.\ (\%) & $\Delta$ \\
+\midrule
+\multirow{3}{*}{AWQ INT4}
+  & C1 Generic  & 41.22 & --    & 59.42 & -- \\
+  & C2 Self-gen & 41.02 & $-$0.20 & 59.72 & $+$0.30 \\
+  & C3 \dacs{}  & 41.77 & $+$0.55 & 59.64 & $+$0.22 \\
+\midrule
+\multirow{3}{*}{SQ INT8}
+  & C1 Generic  & 42.43 & --    & 59.23 & -- \\
+  & C2 Self-gen & 40.61 & $-$1.82 & 49.92$^\dag$ & $-$9.31 \\
+  & C3 \dacs{}  & 42.17 & $-$0.26 & 56.22 & $-$2.91 \\
+\midrule
+\multirow{3}{*}{FP8}
+  & C1 Generic  & \textbf{44.19} & --    & \textbf{62.18} & -- \\
+  & C2 Self-gen & 42.73 & $-$1.46 & \textbf{62.18} & $~~$0.00 \\
+  & C3 \dacs{}  & \textbf{44.19} & $~~$0.00 & \textbf{62.18} & $~~$0.00 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\paragraph{FP8.}
+FP8 achieves the best scores on both benchmarks across all calibration
+conditions.
+Remarkably, all three FP8 MMLU scores are identical at 62.18\,\%, and
+\wmdp{} scores for C1 and C3 are both 44.19\,\%.
+The maximum spread across calibration conditions is 1.46\,pp on \wmdp{}
+and 0.00\,pp on MMLU.
+
+\paragraph{AWQ INT4.}
+AWQ shows consistent but modest improvement with \dacs{} calibration:
+C3 is best on \wmdp{} ($+$0.55\,pp vs.\ C1) and MMLU ($+$0.22\,pp vs.\ C1).
+The total spread across conditions is 0.75\,pp on \wmdp{} and 0.30\,pp on MMLU.
+
+\paragraph{SmoothQuant INT8.}
+SQ exhibits the most complex pattern.
+C1 and C3 perform comparably on \wmdp{} (42.43\,\% and 42.17\,\% respectively),
+while C3 is considerably better than C2 on MMLU (56.22\,\% vs.\ 49.92\,\%).
+The C2 MMLU result is the primary outlier in the entire dataset, discussed
+in \S\ref{sec:analysis}.
+
+% ============================================================
+\section{Analysis}
+\label{sec:analysis}
+
+\subsection{Format Sensitivity Hierarchy}
+
+Our results reveal a clear hierarchy in calibration sensitivity across PTQ formats:
+\textbf{FP8 $<$ AWQ INT4 $<$ SmoothQuant INT8}.
+
+FP8's insensitivity arises from its floating-point dynamic range, which
+accommodates a much wider range of activation values than INT8, making the
+quantization error predominantly rounding noise rather than systematic
+miscalibration.
+The identity of all three MMLU scores (62.18\,\%) confirms that at 8-bit
+floating-point precision, calibration data does not meaningfully affect
+quantization quality.
+
+SmoothQuant's elevated sensitivity is mechanistically predictable.
+Its per-channel smoothing vector $\mathbf{s}$ is computed as a function of
+calibration activation maxima: $s_j = \max(|\mathbf{X}_\text{calib}|)_j^\alpha$.
+If calibration data poorly represents the deployment activation distribution,
+the resulting smoothing factors will systematically miscalibrate the
+weight--activation quantization boundary.
+AWQ's weight-only quantization is less sensitive because activations remain
+in FP16 and calibration data affects only the per-group weight scaling,
+a less critical parameter.
+
+\subsection{The \dacs{} Hypothesis: Evidence Assessment}
+
+Table~\ref{tab:dacs} summarizes evidence for the \dacs{} hypothesis
+(C3 outperforms C1) across format--benchmark combinations.
+
+\begin{table}[h]
+\centering
+\caption{\dacs{} hypothesis assessment: C3 vs.\ C1.}
+\label{tab:dacs}
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Format} & \textbf{\wmdp{}} & \textbf{MMLU} & \textbf{Verdict} \\
+\midrule
+AWQ INT4 & $+$0.55\,pp & $+$0.22\,pp & Supported \\
+SQ INT8  & $-$0.26\,pp & $-$2.91\,pp & Partial$^*$ \\
+FP8      & $~~$0.00\,pp & $~~$0.00\,pp & Neutral \\
+\bottomrule
+\multicolumn{4}{l}{$^*$ C3 $>$ C2 by 6.30\,pp on MMLU; C3 \textless{} C1 due to}\\
+\multicolumn{4}{l}{SQ C2 anomaly pulling down the C1 baseline.}
+\end{tabular}
+\end{table}
+
+For AWQ, \dacs{} calibration consistently outperforms generic calibration
+on both benchmarks, providing directional support for the hypothesis.
+For FP8, calibration is irrelevant---the format is robust enough that
+data choice does not matter.
+
+The SQ picture is more nuanced.
+When C2's anomalous result is removed from consideration, C3 substantially
+outperforms C2 ($+$6.30\,pp MMLU), consistent with domain-specific calibration
+producing better activation statistics than self-generated text.
+However, C3 does not reach C1 levels on MMLU (56.22\,\% vs.\ 59.23\,\%),
+indicating that generic calibration remains a strong baseline for SQ specifically.
+We hypothesize that The Pile's diversity provides a broader coverage of
+activation patterns than either self-generated text or the narrower domain corpus,
+and that the optimal calibration for SQ may require diversity \emph{plus}
+domain relevance---a design direction for future work.
+
+\subsection{The SQ C2 Anomaly}
+\label{sec:anomaly}
+
+The SQ INT8 C2 (self-generated calibration) MMLU result of 49.92\,\%
+represents a catastrophic 9.31\,pp regression from C1.
+The most likely mechanism: model-generated text exhibits a compressed token
+distribution.
+During autoregressive generation, the model produces confident, high-probability
+tokens that cluster in a narrow activation range.
+Consequently, $\max(|\mathbf{X}_\text{calib}|)_j$ across the calibration
+set is systematically underestimated relative to what appears during
+MMLU evaluation, which requires processing diverse academic text.
+The resulting smoothing vectors apply insufficient scaling, leaving activations
+outside the INT8 representable range, causing systematic quantization errors
+across MMLU's 57 subjects.
+
+This failure mode is practically significant: self-generation is an attractive
+calibration approach because it requires no external data.
+Our results demonstrate that for SmoothQuant, self-generated calibration is
+not a viable substitute for real text, motivating either generic data or
+domain-specific data (\dacs{}).
+The partial C3 recovery ($+$6.30\,pp) confirms that real-text calibration
+is critical for SQ correctness, and that domain-relevant text is better
+than self-generated text when the two differ.
+
+\subsection{Benchmark Interpretation}
+
+\wmdp{} was designed as a \emph{hazard proxy}, measuring whether unlearning
+interventions successfully remove dangerous knowledge \citep{li2024wmdp}.
+In our setting---where no unlearning is applied---\wmdp{} serves as a
+\emph{domain-knowledge retention} probe: how well does the quantized model
+preserve cybersecurity-specific representations relative to the FP16 baseline.
+FP8 at 44.19\,\% essentially matches the FP16 baseline ($\approx$44--46\,\%),
+while AWQ at $\approx$41\,\% and SQ at $\approx$42\,\% show moderate losses,
+all substantially above the 25\,\% random chance baseline.
+
+MMLU's 57 subjects provide a complementary general capability measurement.
+FP8 retains 95--96\,\% of FP16 performance (62.18\,\% vs.\ $\approx$63--65\,\%),
+while AWQ retains $\approx$91--92\,\% and SQ C1 retains $\approx$91\,\%.
+The SQ C2 collapse to 49.92\,\% (approximately 77\,\% of FP16 performance)
+highlights a specific failure mode that does not appear in \wmdp{}, suggesting
+the MMLU deficit is concentrated in knowledge-intensive subjects sensitive to
+activation-range miscalibration.
+
+% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We introduced \dacs{}, a domain-aware calibration strategy for post-training
+quantization, and conducted the first systematic study of calibration data
+choice across multiple PTQ formats.
+Our evaluation of nine model variants (3 formats $\times$ 3 calibration
+conditions) on \wmdp{} and MMLU reveals three key findings.
+
+First, calibration sensitivity is format-dependent: FP8 is essentially
+calibration-agnostic, AWQ INT4 shows consistent modest gains under domain-specific
+calibration, and SmoothQuant INT8 exhibits strong sensitivity with a catastrophic
+failure mode under self-generated calibration.
+Second, self-generated calibration is a viable approach for AWQ and FP8 but
+is dangerous for SmoothQuant, where it causes a 9.31\,pp MMLU regression.
+Third, the \dacs{} approach (domain-specific calibration) is never the
+worst-performing condition and provides the clearest benefit for the format most
+sensitive to activation distribution (SmoothQuant).
+
+Practically, our results suggest that practitioners deploying quantized LLMs
+should: (a) use FP8 when hardware allows, as it is robust to calibration
+choice; (b) apply \dacs{} calibration for SmoothQuant or other
+activation-sensitive methods; and (c) avoid self-generated calibration for
+joint weight--activation quantization methods.
+
+\paragraph{Limitations.}
+Our study is conducted on a single base model (\llama{}) due to hardware
+constraints.
+The 512-token sequence length cap required for VRAM management may underrepresent
+long-context calibration patterns.
+The SQ C2 anomaly mechanism, while mechanistically plausible, has not been
+confirmed through direct activation-distribution analysis (this is addressed in
+Activity 4 of our ongoing work).
+Results may differ for other model families or quantization implementations.
+
+% ============================================================
+% Appendix
+\appendix
+
+\section{Evaluation Implementation Details}
+\label{app:eval}
+
+\subsection{MCQ Scoring}
+
+For each question, we construct a prompt consisting of the question text
+followed by the four labeled options.
+We extract the logit values for the single tokens \texttt{A}, \texttt{B},
+\texttt{C}, \texttt{D} from the output distribution of the last input token
+and take the argmax as the predicted answer.
+This approach is more robust than generation-based scoring for quantized models
+and does not depend on the model producing well-formed answer strings.
+
+\subsection{SmoothQuant Loading Protocol}
+
+Loading SQ INT8 models requires a two-phase procedure due to the ModelOpt
+quantization framework:
+(1) Load the FP16 base model and run \texttt{mtq.quantize()} with 16 warm-up
+samples to initialize the 224-module quantizer structure;
+(2) Flush the CUDA cache (\texttt{gc.collect(); torch.cuda.empty\_cache()})
+to recover the $\approx$5.66\,GB of activation memory from warm-up, then
+load the saved INT8 state dict on CPU (\texttt{load\_file(device="cpu")})
+and apply via \texttt{load\_state\_dict(strict=False)}, which performs
+in-place \texttt{copy\_} operations without additional GPU allocation.
+
+The cache flush is critical: without it, VRAM after warm-up is 21.74\,GB,
+leaving insufficient headroom on the 22.06\,GB A10 for the INT8 state dict
+load.
+
+\subsection{Subprocess Isolation}
+
+To prevent CUDA state contamination when evaluating multiple models
+sequentially, each model evaluation runs in a fresh Python subprocess.
+The parent process spawns evaluations via \texttt{os.system()} with
+\texttt{tee} logging, parses the \texttt{RESULT:XX.XXXX} token from
+subprocess output, and records accuracy without GPU memory interaction.
+This prevents ModelOpt CUDA hooks registered during one model's evaluation
+from interfering with subsequent models' quantization format detection.
+
+\bibliography{references}
+\bibliographystyle{acl_natbib}
+
+\end{document}

@@ -44,8 +44,19 @@ images/
 PurpleLlama/
 MedQA/
 
+# ── Paper build artifacts (track LaTeX source, not compiled output) ───────────
+paper/*.pdf
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.out
+paper/*.toc
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
+paper/*.log
+
 # ── Temporary files ───────────────────────────────────────────────────────────
 *.tmp
-*.log
 /tmp/
 data/cybersec_sft_train.jsonl
