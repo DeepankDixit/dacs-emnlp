@@ -27,8 +27,9 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 
-# Add code directory to path so unified_eval.py is importable
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# unified_eval.py lives at code/ root (shared between all activities)
+_CODE_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+sys.path.insert(0, _CODE_ROOT)
 from unified_eval import evaluate_model
 
 # ---------------------------------------------------------------------------

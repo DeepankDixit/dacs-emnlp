@@ -1,0 +1,18 @@
+# DACS Activity 3 — Multi-Domain Extension Requirements
+# ======================================================
+# These are INCREMENTAL over Activity 2's setup_lambda.sh.
+# Run Activity 2 setup first, then: pip install -r requirements_act3.txt
+#
+# (Activity 2 already pins: torch 2.6.0+cu124, transformers 5.5.0,
+#  accelerate 1.13.0, datasets 4.8.4, nvidia-modelopt 0.42.0, autoawq 0.2.9,
+#  lm-eval 0.4.11, peft 0.18.1 — do NOT upgrade these.)
+
+# Domain eval harnesses
+human-eval==1.0.3
+
+# Dataset loaders for public C3 corpora
+# (datasets is already in Activity 2; pin here for reproducibility)
+datasets==4.8.4
+
+# HuggingFace CLI for gated model access (Med42)
+huggingface_hub>=0.24.0
