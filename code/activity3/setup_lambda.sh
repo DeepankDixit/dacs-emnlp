@@ -9,9 +9,9 @@
 #
 # Usage:
 #   source venv/bin/activate
-#   bash code/setup_lambda.sh              # Activity 2 base
-#   bash code/setup_lambda_act3.sh         # Activity 3 extensions
-#   huggingface-cli login                  # enter token for Med42 gated access
+#   bash code/activity2/setup_lambda.sh    # Activity 2 base
+#   bash code/activity3/setup_lambda.sh    # Activity 3 extensions
+#   huggingface-cli login --token $HF_TOKEN
 
 set -e
 
@@ -21,7 +21,7 @@ echo "======================================================"
 
 # ── Step 1: Activity-3 pip extras ────────────────────────────────────────────
 echo "[1/4] Installing Activity 3 extras..."
-pip install -q -r code/requirements_act3.txt
+pip install -q -r code/activity3/requirements.txt
 echo "      OK"
 
 # ── Step 2: MedQA dataset ────────────────────────────────────────────────────
@@ -45,19 +45,18 @@ probs = read_problems()
 print(f"      HumanEval loaded: {len(probs)} problems")
 EOF
 
-# ── Step 4: Gated model check ────────────────────────────────────────────────
-echo "[4/4] Checking HuggingFace login (required for Med42 gated access)..."
+# ── Step 4: HuggingFace login check ──────────────────────────────────────────
+echo "[4/4] Checking HuggingFace login..."
 if huggingface-cli whoami 2>/dev/null | grep -q .; then
     WHO=$(huggingface-cli whoami 2>/dev/null | head -1)
     echo "      Logged in as: $WHO"
 else
     echo "      NOT LOGGED IN."
-    echo "      Run: huggingface-cli login"
-    echo "      Then accept terms at: https://huggingface.co/m42-health/Llama3-Med42-8B"
+    echo "      Run: huggingface-cli login --token \$HF_TOKEN"
 fi
 
 echo ""
 echo "======================================================"
 echo " Activity 3 setup COMPLETE"
-echo " Next: python code/download_domain_models.py --domain all"
+echo " Next: python code/activity3/download_models.py --domain all"
 echo "======================================================"
