@@ -25,15 +25,39 @@ pip install -q -r code/activity3/requirements.txt
 echo "      OK"
 
 # ── Step 2: MedQA dataset ────────────────────────────────────────────────────
-echo "[2/4] Cloning MedQA (US 4-option test split)..."
-if [ ! -d "MedQA" ]; then
-    git clone --depth 1 https://github.com/jind11/MedQA.git MedQA
-    echo "      MedQA cloned"
+echo "[2/4] Downloading MedQA test split from HuggingFace..."
+MEDQA_FILE="MedQA/data/questions/US/4_options/phrases_no_exclude_test.jsonl"
+if [ ! -f "$MEDQA_FILE" ]; then
+    mkdir -p MedQA/data/questions/US/4_options
+    python - <<'EOF'
+import json, os
+from datasets import load_dataset
+
+print("      Fetching GBaker/MedQA-USMLE-4-options test split...")
+ds = load_dataset("GBaker/MedQA-USMLE-4-options", split="test")
+out_path = "MedQA/data/questions/US/4_options/phrases_no_exclude_test.jsonl"
+with open(out_path, "w") as f:
+    for item in ds:
+        # resolve answer_idx from answer text
+        answer_idx = None
+        for k, v in item["options"].items():
+            if v.strip() == item["answer"].strip():
+                answer_idx = k
+                break
+        if answer_idx is None:
+            answer_idx = list(item["options"].keys())[0]  # fallback
+        record = {
+            "question":   item["question"],
+            "options":    item["options"],
+            "answer_idx": answer_idx,
+        }
+        f.write(json.dumps(record) + "\n")
+print(f"      Saved {len(ds)} questions to {out_path}")
+EOF
 else
     echo "      MedQA already present, skipping"
 fi
-# Sanity: count test questions
-N_Q=$(wc -l < MedQA/data/questions/US/4_options/phrases_no_exclude_test.jsonl)
+N_Q=$(wc -l < "$MEDQA_FILE")
 echo "      MedQA test set: $N_Q questions"
 
 # ── Step 3: HumanEval+ ───────────────────────────────────────────────────────
