@@ -2,12 +2,12 @@
 DACS Activity 3 — INT4 AWQ quantization (parameterized by domain + calibration)
 ==============================================================================
 Usage:
-    python activity3/awq.py --domain med  --cond c1
-    python activity3/awq.py --domain med  --cond c2
-    python activity3/awq.py --domain med  --cond c3
-    python activity3/awq.py --domain code --cond c1
-    python activity3/awq.py --domain code --cond c2
-    python activity3/awq.py --domain code --cond c3
+    python activity3/quant_awq.py --domain med  --cond c1
+    python activity3/quant_awq.py --domain med  --cond c2
+    python activity3/quant_awq.py --domain med  --cond c3
+    python activity3/quant_awq.py --domain code --cond c1
+    python activity3/quant_awq.py --domain code --cond c2
+    python activity3/quant_awq.py --domain code --cond c3
 
 Input:    ./outputs/{domain}_fp16/ + calibration JSONL
 Output:   ./outputs/{domain}_int4_awq_{cond}/  (~4 GB)
