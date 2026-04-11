@@ -277,7 +277,9 @@ def _answer_medqa(model, tokenizer, q) -> str:
     prompt += "Answer:"
 
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    # AutoAWQForCausalLM doesn't expose .device; fall back to first parameter's device
+    device = getattr(model, "device", None) or next(model.parameters()).device
+    inputs = {k: v.to(device) for k, v in inputs.items()}
     with torch.no_grad():
         output = model.generate(**inputs, max_new_tokens=1, do_sample=False)
     return tokenizer.decode(output[0][-1:]).strip().upper()
