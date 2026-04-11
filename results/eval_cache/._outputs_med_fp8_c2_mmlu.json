@@ -1,0 +1,6 @@
+{
+  "model_path": "./outputs/med_fp8_c2/",
+  "benchmark": "mmlu",
+  "accuracy": 60.6965,
+  "limit": null
+}

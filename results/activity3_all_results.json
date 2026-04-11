@@ -1,0 +1,80 @@
+{
+  "med_int4_awq_c1": {
+    "domain": "med",
+    "format": "int4_awq",
+    "cond": "c1",
+    "medqa": 58.8,
+    "mmlu": 59.5286
+  },
+  "med_int4_awq_c2": {
+    "domain": "med",
+    "format": "int4_awq",
+    "cond": "c2",
+    "medqa": 62.0,
+    "mmlu": 58.8307
+  },
+  "med_int4_awq_c3": {
+    "domain": "med",
+    "format": "int4_awq",
+    "cond": "c3",
+    "medqa": 60.6,
+    "mmlu": 58.8663
+  },
+  "med_int8_sq_c1": {
+    "domain": "med",
+    "format": "int8_sq",
+    "cond": "c1",
+    "medqa": 57.99999999999999,
+    "mmlu": 58.4176
+  },
+  "med_int8_sq_c2": {
+    "domain": "med",
+    "format": "int8_sq",
+    "cond": "c2",
+    "medqa": 60.2,
+    "mmlu": 56.0105
+  },
+  "med_int8_sq_c3": {
+    "domain": "med",
+    "format": "int8_sq",
+    "cond": "c3",
+    "medqa": 61.6,
+    "mmlu": 57.9333
+  },
+  "med_fp8_c1": {
+    "domain": "med",
+    "format": "fp8",
+    "cond": "c1",
+    "medqa": 63.2,
+    "mmlu": 60.6965
+  },
+  "med_fp8_c2": {
+    "domain": "med",
+    "format": "fp8",
+    "cond": "c2",
+    "medqa": 63.2,
+    "mmlu": 60.6965
+  },
+  "med_fp8_c3": {
+    "domain": "med",
+    "format": "fp8",
+    "cond": "c3",
+    "medqa": 63.2,
+    "mmlu": 60.6965
+  },
+  "_metadata": {
+    "timestamp": "2026-04-11T05:57:36.024133",
+    "limit": null,
+    "domains": [
+      "med"
+    ],
+    "formats": [
+      "int8_sq"
+    ],
+    "conds": [
+      "c1",
+      "c2",
+      "c3"
+    ]
+  }
+}
