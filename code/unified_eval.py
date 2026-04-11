@@ -237,25 +237,20 @@ def _run_medqa(model_path: str, limit=500) -> float:
         print(f"  WARNING: MedQA file not found at {MEDQA_TEST}. Skipping.")
         return 0.0
 
-    # Format-aware loading — same logic as wmdp_eval.py
+    # Format-aware loading — delegates to the same loaders used by MMLU/WMDP eval.
     sys.path.insert(0, os.path.dirname(__file__))
-    from wmdp_eval import detect_format
+    from wmdp_eval import detect_format, load_awq_model, load_sq_model, load_fp8_model, load_fp16_model
     fmt = detect_format(model_path)
     print(f"  Detected format: {fmt.upper()}")
 
     if fmt == "awq":
-        from awq import AutoAWQForCausalLM
-        model = AutoAWQForCausalLM.from_quantized(
-            model_path, fuse_layers=False, trust_remote_code=False)
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
-    elif fmt in ("sq_int8", "fp8"):
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path, torch_dtype=torch.float16, device_map="auto")
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        model, tokenizer = load_awq_model(model_path)
+    elif fmt == "sq_int8":
+        model, tokenizer = load_sq_model(model_path)   # warm-up + setattr amax injection
+    elif fmt == "fp8":
+        model, tokenizer = load_fp8_model(model_path)
     else:
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path, torch_dtype=torch.float16, device_map="auto")
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        model, tokenizer = load_fp16_model(model_path)
 
     with open(MEDQA_TEST) as f:
         questions = [json.loads(line) for line in f][:limit]

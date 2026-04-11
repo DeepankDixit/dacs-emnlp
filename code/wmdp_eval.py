@@ -168,7 +168,7 @@ def load_awq_model(model_path: str):
 
 
 def load_sq_model(model_path: str,
-                  base_model_path: str = "./outputs/cybersec_analyst_merged_fp16/"):
+                  base_model_path: str = None):
     """
     Load SQ INT8 model correctly.
 
@@ -214,6 +214,18 @@ def load_sq_model(model_path: str,
         import gc
     except ImportError as e:
         raise ImportError(f"Missing dependency: {e}")
+
+    # Auto-infer base FP16 path from model_path naming convention:
+    #   ./outputs/med_int8_sq_c1/  → ./outputs/med_fp16/
+    #   ./outputs/code_int8_sq_c1/ → ./outputs/code_fp16/
+    #   anything else              → Activity 2 cybersec path (backward compat)
+    if base_model_path is None:
+        domain_prefix = Path(model_path).name.split("_")[0]  # "med", "code", "cyber", …
+        parent = str(Path(model_path).parent)
+        if domain_prefix in ("med", "code"):
+            base_model_path = os.path.join(parent, f"{domain_prefix}_fp16") + "/"
+        else:
+            base_model_path = "./outputs/cybersec_analyst_merged_fp16/"
 
     print(f"  Loading SQ INT8 model (warm-up calibration + load_state_dict): {model_path}")
     print(f"  Base model: {base_model_path}")
@@ -286,15 +298,31 @@ def load_sq_model(model_path: str,
         quant_keys = sum(1 for k in saved_state if "quantizer" in k)
         print(f"  State dict loaded to CPU ({quant_keys} quantizer keys). Applying in-place copy...")
         missing, unexpected = model.load_state_dict(saved_state, strict=False)
-        del saved_state
-        gc.collect()
-        torch.cuda.empty_cache()
         print(f"  Keys — missing: {len(missing)}  unexpected: {len(unexpected)}")
         if missing:
             print(f"  WARNING: missing keys (first 3): {missing[:3]}")
-        if unexpected:
-            print(f"  WARNING: unexpected keys (first 3): {unexpected[:3]}")
-        print("  INT8 fake-quantization active (original calibration scales restored)")
+
+        # Inject quantizer tensors (amax, pre_quant_scale) directly onto TensorQuantizer modules.
+        # load_state_dict cannot inject them because TensorQuantizer stores _amax as a plain
+        # Python attribute (not a registered parameter/buffer), so they show as "unexpected".
+        # setattr() directly on the module bypasses this limitation and restores the original
+        # calibration-specific scales (C1/C2/C3), overwriting the warm-up values.
+        device = next(model.parameters()).device
+        module_map = {n: m for n, m in model.named_modules()}
+        quant_injected = 0
+        for key, tensor in saved_state.items():
+            if "_quantizer." in key:
+                dot = key.rfind(".")
+                mod_name, attr = key[:dot], key[dot + 1:]
+                if mod_name in module_map:
+                    setattr(module_map[mod_name], attr, tensor.to(device))
+                    quant_injected += 1
+        print(f"  Quantizer tensors injected: {quant_injected}  (original calibration scales restored)")
+
+        del saved_state
+        gc.collect()
+        torch.cuda.empty_cache()
+        print("  INT8 fake-quantization active (original C1/C2/C3 calibration scales applied)")
 
     except Exception as e:
         print(f"  WARNING: SQ restore failed: {e}")
