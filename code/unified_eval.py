@@ -227,62 +227,56 @@ def _run_mmlu(model_path: str, num_fewshot=5, limit=None) -> float:
 
 
 # ---------------------------------------------------------------------------
-# MedQA runner (inline — 4-option US medical board questions)
+# MedQA runner — subprocess (same pattern as _run_mmlu)
+# ---------------------------------------------------------------------------
+# WHY SUBPROCESS (not in-process loading):
+#
+#   For SQ INT8 models, ModelOpt TensorQuantizer hooks create circular
+#   references (module_map dict ↔ quantizer module ↔ model) that prevent
+#   `del model + torch.cuda.empty_cache()` from releasing VRAM.  After an
+#   inline MedQA run the parent process retains ~15.28 GB, causing the next
+#   model's MMLU subprocess to OOM (only 6.54 GB free on the A10's 22 GB).
+#
+#   Running in a fresh subprocess guarantees:
+#     - Clean GPU state for every model
+#     - ModelOpt hooks fully unloaded between runs
+#     - No cascading OOM from SQ c1→c2→c3
+#
+#   The evaluate_medqa() function in wmdp_eval.py uses logit-based MCQ
+#   scoring (same as MMLU) rather than generate() for speed consistency.
 # ---------------------------------------------------------------------------
 def _run_medqa(model_path: str, limit=500) -> float:
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-
+    """
+    Evaluate MedQA using the format-aware direct evaluator via SUBPROCESS.
+    Delegates to wmdp_eval.py --task medqa for guaranteed clean GPU state.
+    """
     if not os.path.exists(MEDQA_TEST):
         print(f"  WARNING: MedQA file not found at {MEDQA_TEST}. Skipping.")
         return 0.0
 
-    # Format-aware loading — delegates to the same loaders used by MMLU/WMDP eval.
-    sys.path.insert(0, os.path.dirname(__file__))
-    from wmdp_eval import detect_format, load_awq_model, load_sq_model, load_fp8_model, load_fp16_model
-    fmt = detect_format(model_path)
-    print(f"  Detected format: {fmt.upper()}")
+    code_dir = os.path.dirname(os.path.abspath(__file__))
+    script   = os.path.join(code_dir, "wmdp_eval.py")
+    python   = sys.executable
 
-    if fmt == "awq":
-        model, tokenizer = load_awq_model(model_path)
-    elif fmt == "sq_int8":
-        model, tokenizer = load_sq_model(model_path)   # warm-up + setattr amax injection
-    elif fmt == "fp8":
-        model, tokenizer = load_fp8_model(model_path)
-    else:
-        model, tokenizer = load_fp16_model(model_path)
+    cmd = [python, script, model_path, "--task", "medqa",
+           "--medqa_path", MEDQA_TEST, "--limit", str(limit)]
 
-    with open(MEDQA_TEST) as f:
-        questions = [json.loads(line) for line in f][:limit]
+    import shlex, tempfile
+    outfile = tempfile.mktemp(suffix=".txt")
+    tee_cmd = f"{shlex.join(cmd)} 2>&1 | tee {outfile}"
+    print(f"  Spawning fresh process for clean GPU state (MedQA)...")
+    os.system(tee_cmd)
 
-    correct = 0
-    for i, q in enumerate(questions):
-        if _answer_medqa(model, tokenizer, q) == q["answer_idx"]:
-            correct += 1
-        if (i + 1) % 50 == 0:
-            print(f"    MedQA progress: {i+1}/{len(questions)}  "
-                  f"({correct/(i+1)*100:.1f}% so far)")
+    try:
+        with open(outfile) as f:
+            for line in f:
+                if line.startswith("RESULT:"):
+                    return float(line.strip().split(":")[1])
+    except Exception as e:
+        print(f"  ERROR parsing MedQA result file: {e}")
 
-    del model
-    import torch; torch.cuda.empty_cache()
-
-    return correct / len(questions) * 100
-
-
-def _answer_medqa(model, tokenizer, q) -> str:
-    import torch
-    prompt = f"Question: {q['question']}\n"
-    for k, v in q["options"].items():
-        prompt += f"{k}. {v}\n"
-    prompt += "Answer:"
-
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-    # AutoAWQForCausalLM doesn't expose .device; fall back to first parameter's device
-    device = getattr(model, "device", None) or next(model.parameters()).device
-    inputs = {k: v.to(device) for k, v in inputs.items()}
-    with torch.no_grad():
-        output = model.generate(**inputs, max_new_tokens=1, do_sample=False)
-    return tokenizer.decode(output[0][-1:]).strip().upper()
+    print(f"  WARNING: Could not parse MedQA accuracy from subprocess output.")
+    return 0.0
 
 
 # ---------------------------------------------------------------------------

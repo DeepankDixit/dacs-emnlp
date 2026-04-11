@@ -113,13 +113,11 @@ def main(args):
         if k not in all_results:
             all_results[k] = {"domain": d, "format": f, "cond": c}
 
-        # SQ INT8 models load 16 GB in-process for MedQA/HumanEval.
-        # The MMLU subprocess then OOMs because the parent holds CUDA pages.
-        # Fix: run MMLU subprocess first (exits fully, GPU freed), then
-        # load MedQA/HumanEval in-process with the full 22 GB available.
-        bench_order = (list(reversed(DOMAIN_BENCH[d]))
-                       if "int8_sq" in f else DOMAIN_BENCH[d])
-        for bench in bench_order:
+        # Both MedQA and MMLU now run as subprocesses (wmdp_eval.py --task medqa/mmlu).
+        # Each subprocess exits cleanly, releasing all GPU memory before the next one
+        # starts.  The original order (domain benchmark first, then MMLU) is used for
+        # all formats — no special-casing needed for SQ INT8.
+        for bench in DOMAIN_BENCH[d]:
             try:
                 score = evaluate_model(
                     model_path=path, benchmark=bench,

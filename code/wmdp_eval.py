@@ -632,6 +632,76 @@ def evaluate_mmlu(
 
 
 # ---------------------------------------------------------------------------
+# MedQA evaluation (US 4-option medical board questions)
+# ---------------------------------------------------------------------------
+def evaluate_medqa(
+    model,
+    tokenizer,
+    medqa_path: str = "./MedQA/data/questions/US/4_options/phrases_no_exclude_test.jsonl",
+    limit: int = 500,
+) -> float:
+    """
+    Evaluate model on MedQA (US USMLE-style 4-option MCQ).
+
+    WHY SUBPROCESS (not inline via unified_eval._run_medqa):
+      SQ INT8 models hold ~15–16 GB GPU memory after inline evaluation.
+      ModelOpt TensorQuantizer hooks create circular references (module_map
+      dict keeps refs to every quantizer module) that prevent standard
+      `del model + empty_cache()` from releasing VRAM.  Running inside a
+      fresh subprocess guarantees a clean GPU state between models, matching
+      the approach already used for MMLU.
+
+    Input format: JSONL with fields {question, options: {A,B,C,D}, answer_idx}.
+    Metric: accuracy (%) over `limit` questions.
+    """
+    import json as _json
+
+    if not os.path.exists(medqa_path):
+        print(f"  WARNING: MedQA file not found at {medqa_path}. Skipping.")
+        return 0.0
+
+    with open(medqa_path) as f:
+        questions = [_json.loads(line) for line in f][:limit]
+
+    total = len(questions)
+    print(f"  {total} questions  |  MedQA US 4-option  |  device: {next(model.parameters()).device}")
+
+    correct = 0
+    model.eval()
+    device = getattr(model, "device", None) or next(model.parameters()).device
+
+    choice_ids = get_choice_token_ids(tokenizer)
+
+    for i, q in enumerate(tqdm(questions, desc="  MedQA")):
+        prompt = f"Question: {q['question']}\n"
+        for k, v in q["options"].items():
+            prompt += f"{k}. {v}\n"
+        prompt += "Answer:"
+
+        inputs = tokenizer(
+            prompt, return_tensors="pt", truncation=True, max_length=512
+        )
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+
+        with torch.no_grad():
+            outputs = model(**inputs)
+
+        last_logits = outputs.logits[0, -1, :]   # (vocab_size,)
+        scores = [max(last_logits[tid].item() for tid in tids) for tids in choice_ids]
+        pred = CHOICES[scores.index(max(scores))]
+
+        if pred == q["answer_idx"]:
+            correct += 1
+
+        if (i + 1) % 50 == 0:
+            print(f"    MedQA progress: {i+1}/{total}  ({correct/(i+1)*100:.1f}% so far)")
+
+    accuracy = correct / total * 100
+    print(f"\n  MedQA accuracy: {correct}/{total} = {accuracy:.2f}%")
+    return accuracy
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def main():
@@ -639,10 +709,13 @@ def main():
         description="Evaluate a DACS quantized model on WMDP-Cyber or MMLU"
     )
     parser.add_argument("model_path", help="Path to quantized model directory")
-    parser.add_argument("--task",      choices=["wmdp_cyber", "mmlu"], default="wmdp_cyber",
+    parser.add_argument("--task",      choices=["wmdp_cyber", "mmlu", "medqa"], default="wmdp_cyber",
                         help="Benchmark to run (default: wmdp_cyber)")
     parser.add_argument("--num_fewshot", type=int, default=5)
     parser.add_argument("--limit",       type=int, default=None, help="Max questions (test mode)")
+    parser.add_argument("--medqa_path",  type=str,
+                        default="./MedQA/data/questions/US/4_options/phrases_no_exclude_test.jsonl",
+                        help="Path to MedQA JSONL test file")
     parser.add_argument("--format",      choices=["awq", "sq_int8", "fp8", "fp16", "auto"],
                         default="auto",  help="Force model format (default: auto-detect)")
     args = parser.parse_args()
@@ -671,6 +744,13 @@ def main():
             model, tokenizer,
             num_fewshot=args.num_fewshot,
             limit=args.limit,
+        )
+        baseline = 25.0
+    elif args.task == "medqa":
+        accuracy = evaluate_medqa(
+            model, tokenizer,
+            medqa_path=args.medqa_path,
+            limit=args.limit or 500,
         )
         baseline = 25.0
     else:
