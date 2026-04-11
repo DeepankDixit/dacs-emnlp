@@ -239,7 +239,9 @@ def load_sq_model(model_path: str,
     model = AutoModelForCausalLM.from_pretrained(
         base_model_path,
         dtype=torch.float16,
-        device_map="auto",
+        device_map="cuda:0",  # Force all layers to GPU; "auto" can place layers on
+                              # meta device in subprocess context, making load_state_dict
+                              # a no-op for those layers and causing CPU-speed inference.
     )
     model.eval()
 
