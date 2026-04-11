@@ -280,9 +280,18 @@ def _run_medqa(model_path: str, limit=500) -> float:
 
 
 # ---------------------------------------------------------------------------
-# HumanEval runner
+# HumanEval runner — format-aware, with explicit GPU cleanup
 # ---------------------------------------------------------------------------
 def _run_humaneval(model_path: str) -> float:
+    """
+    Evaluate HumanEval pass@1 using format-aware model loading.
+
+    WHY FORMAT-AWARE:
+      AutoModelForCausalLM.from_pretrained(dtype=fp16) breaks AWQ models
+      (requires gptqmodel) and SQ models (scales not applied → garbage output).
+      Same root cause as MedQA.  Fix: use the same format-specific loaders
+      from wmdp_eval.py that are used for MedQA and MMLU.
+    """
     try:
         from human_eval.data import read_problems, write_jsonl
         from human_eval.evaluation import evaluate_functional_correctness
@@ -290,20 +299,33 @@ def _run_humaneval(model_path: str) -> float:
         print("  human-eval not installed. Run: pip install human-eval")
         return 0.0
 
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    import torch, gc
+
+    code_dir = os.path.dirname(os.path.abspath(__file__))
+    if code_dir not in sys.path:
+        sys.path.insert(0, code_dir)
+
+    from wmdp_eval import detect_format, load_awq_model, load_sq_model, load_fp8_model, load_fp16_model
+    fmt = detect_format(model_path)
+    print(f"  Detected format: {fmt.upper()}")
+
+    if fmt == "awq":
+        model, tokenizer = load_awq_model(model_path)
+    elif fmt == "sq_int8":
+        model, tokenizer = load_sq_model(model_path)
+    elif fmt == "fp8":
+        model, tokenizer = load_fp8_model(model_path)
+    else:
+        model, tokenizer = load_fp16_model(model_path)
+
+    device = getattr(model, "device", None) or next(model.parameters()).device
 
     problems = read_problems()
-    model = AutoModelForCausalLM.from_pretrained(
-        model_path, torch_dtype=torch.float16, device_map="auto"
-    )
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-
     samples = []
     for tid, prob in problems.items():
         inputs = tokenizer(prob["prompt"], return_tensors="pt",
                            truncation=True, max_length=512)
-        inputs = {k: v.to(model.device) for k, v in inputs.items()}
+        inputs = {k: v.to(device) for k, v in inputs.items()}
         with torch.no_grad():
             out = model.generate(**inputs, max_new_tokens=256,
                                  temperature=0.0, do_sample=False)
@@ -316,7 +338,10 @@ def _run_humaneval(model_path: str) -> float:
     write_jsonl(tmpf.name, samples)
 
     results = evaluate_functional_correctness(tmpf.name)
-    del model
+
+    # Explicit cleanup — critical for SQ INT8 circular references
+    del model, tokenizer
+    gc.collect()
     torch.cuda.empty_cache()
 
     return results["pass@1"] * 100
