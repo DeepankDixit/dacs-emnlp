@@ -113,7 +113,13 @@ def main(args):
         if k not in all_results:
             all_results[k] = {"domain": d, "format": f, "cond": c}
 
-        for bench in DOMAIN_BENCH[d]:
+        # SQ INT8 models load 16 GB in-process for MedQA/HumanEval.
+        # The MMLU subprocess then OOMs because the parent holds CUDA pages.
+        # Fix: run MMLU subprocess first (exits fully, GPU freed), then
+        # load MedQA/HumanEval in-process with the full 22 GB available.
+        bench_order = (list(reversed(DOMAIN_BENCH[d]))
+                       if "int8_sq" in f else DOMAIN_BENCH[d])
+        for bench in bench_order:
             try:
                 score = evaluate_model(
                     model_path=path, benchmark=bench,
