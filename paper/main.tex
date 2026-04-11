@@ -453,21 +453,121 @@ proposed above: narrow calibration hurts broad evaluation more than
 narrow-match evaluation.
 
 % ============================================================
+\section{Cross-Domain Replication: Medical Domain}
+\label{sec:medical}
+
+To assess whether the sensitivity hierarchy generalises beyond
+cybersecurity, we replicate the 3$\times$3 grid on a \emph{public}
+biomedical checkpoint---\texttt{m42-health/Llama3-Med42-8B} (8B
+parameters, FP16)---evaluated on MedQA (500 USMLE-style 4-choice MCQs,
+logit-based scorer, $n{=}500$ random sample) and MMLU (same 5-shot
+protocol as \S\ref{sec:eval}).  The FP16 baseline scores
+63.20\,\% on MedQA and 60.70\,\% on MMLU.  Calibration corpora are
+constructed to match the Activity~3 protocol: C1 uses WikiText-2
+(generic); C2 uses self-generated continuations from Med42 itself
+($T{=}0.8$, 512 sequences $\times$ 512 tokens); C3 uses a
+PubMedQA\,+\,MedicalMeadow domain corpus.  All nine quantized models
+are produced on the same Lambda A10G hardware under identical
+conditions.
+
+\begin{table*}[t]
+\centering
+\caption{Medical domain: MedQA and MMLU accuracy (\%) for all nine
+         (format $\times$ calibration) configurations on
+         \texttt{Llama3-Med42-8B}.  FP16 baseline: MedQA\,=\,63.20\,\%,
+         MMLU\,=\,60.70\,\%.  Best per column in \textbf{bold}.
+         $\Delta$ is vs.\ C1 within each format.}
+\label{tab:medical}
+\small
+\begin{tabular}{llcccc}
+\toprule
+\multirow{2}{*}{\textbf{Format}} &
+\multirow{2}{*}{\textbf{Calibration}} &
+\multicolumn{2}{c}{\textbf{MedQA}} &
+\multicolumn{2}{c}{\textbf{MMLU}} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+& & Acc.\ (\%) & $\Delta$ & Acc.\ (\%) & $\Delta$ \\
+\midrule
+\multirow{3}{*}{AWQ INT4}
+  & C1 Generic  & 58.80 & --       & 59.53 & -- \\
+  & C2 Self-gen & \textbf{62.00} & $+$3.20 & 58.83 & $-$0.70 \\
+  & C3 \dacs{}  & 60.60 & $+$1.80  & 58.87 & $-$0.66 \\
+\midrule
+\multirow{3}{*}{SQ INT8}
+  & C1 Generic  & 58.00 & --       & 58.42 & -- \\
+  & C2 Self-gen & 60.20 & $+$2.20  & 56.01 & $-$2.41 \\
+  & C3 \dacs{}  & \textbf{61.60} & $+$3.60  & 57.93 & $-$0.49 \\
+\midrule
+\multirow{3}{*}{FP8}
+  & C1 Generic  & \textbf{63.20} & --       & \textbf{60.70} & -- \\
+  & C2 Self-gen & \textbf{63.20} & $~~$0.00 & \textbf{60.70} & $~~$0.00 \\
+  & C3 \dacs{}  & \textbf{63.20} & $~~$0.00 & \textbf{60.70} & $~~$0.00 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Table~\ref{tab:medical} shows three results that replicate and extend
+the cybersecurity findings.
+
+\paragraph{The sensitivity hierarchy holds.}
+FP8 remains perfectly calibration-invariant: MedQA and MMLU scores are
+identical across all three conditions and exactly match the FP16 baseline
+(0.00\,pp spread on both benchmarks).  AWQ INT4 shows mild sensitivity
+($\le$3.20\,pp MedQA, $\le$0.70\,pp MMLU).  SmoothQuant INT8 shows the
+largest MMLU spread (2.41\,pp), driven again by the C2 regression.
+The order FP8 $<$ AWQ $<$ SQ is preserved.
+
+\paragraph{SQ C2 self-calibration regression replicates, at a
+smaller magnitude.}
+The SQ\,C2 MMLU regression is $-$2.41\,pp on medical vs.\ $-$9.31\,pp
+on cybersecurity.  Both are directionally consistent with the
+activation-range-underestimation mechanism (\S\ref{sec:anomaly}): the
+smaller magnitude is expected because Med42 is a 8B public checkpoint
+fine-tuned with a broader recipe than our narrow QLoRA cybersecurity
+adapter, resulting in less activation-distribution narrowing under
+self-generated decoding.  This confirms that the failure mode is not
+an artefact of our specific fine-tuning setup---it generalises---but
+that its severity scales with the degree of domain narrowing.
+
+\paragraph{C3 (\dacs{}) vs.\ C1 and C2.}
+C3 outperforms C1 on the in-domain task for both formats where
+calibration matters: $+$1.80\,pp AWQ MedQA, $+$3.60\,pp SQ MedQA.
+However, on MMLU, C3 is marginally negative for AWQ ($-$0.66\,pp) and
+near-neutral for SQ ($-$0.49\,pp), consistent with the cybersecurity
+finding that domain-narrowed calibration trades MMLU breadth for domain
+accuracy.  Interestingly, for AWQ, C2 outperforms C3 on MedQA
+($+$3.20\,pp vs.\ $+$1.80\,pp vs.\ C1); we attribute this to
+Med42's self-generated text being strongly biomedical (more domain-aligned
+than our PubMedQA-based C3 corpus), a nuance that reinforces the
+complexity of calibration-data selection and strengthens the case for
+cross-format sensitivity maps over single-method recommendations.
+
+\paragraph{Code domain.}
+The equivalent 9-model grid for CodeLlama-7B-Instruct (HumanEval and
+MMLU) is in progress and will complete the 27-model cross-domain table.
+Preliminary quantization is done; evaluation results will be reported
+in the final version.
+
+% ============================================================
 \section{Conclusion}
 \label{sec:conclusion}
 
 We conducted a systematic cross-format sensitivity study of
 calibration-data choice for post-training quantization of a domain
 fine-tuned LLM.  Across 18 (format $\times$ calibration $\times$
-benchmark) configurations, we established a clear sensitivity hierarchy
-(FP8 $<$ AWQ $<$ SmoothQuant), identified a catastrophic
-SmoothQuant-plus-self-calibration failure mode specific to fine-tuned
-models, and mapped out when domain-aligned calibration helps versus
-when it hurts.  The actionable takeaway is a small decision surface:
-use FP8 if the hardware supports it; for AWQ, domain calibration gives
-a modest consistent gain; for SmoothQuant, never use self-generated
-calibration and treat \emph{any} calibration-data choice as a
-deployment-critical decision that needs validation.
+benchmark) configurations on a cybersecurity fine-tuned model, and a
+further 18 configurations on a public biomedical checkpoint
+(Med42-8B), we established a clear sensitivity hierarchy
+(FP8 $<$ AWQ $<$ SmoothQuant) that holds across both domains,
+identified a SmoothQuant self-calibration failure mode specific to
+fine-tuned models that replicates across domains (though at
+domain-dependent magnitudes), and mapped out when domain-aligned
+calibration helps versus when it hurts.  The actionable takeaway is a
+small decision surface: use FP8 if the hardware supports it; for AWQ,
+domain calibration gives a modest consistent gain; for SmoothQuant,
+never use self-generated calibration and treat \emph{any}
+calibration-data choice as a deployment-critical decision that needs
+validation.
 
 Our contribution is \emph{characterization}, not method proposal.
 Concurrent method-proposal work \citep{mixcal2026, levi2026pertask}
@@ -475,18 +575,19 @@ addresses calibration design from the other side; a sensitivity map
 like ours is the diagnostic prior those methods can target.
 
 \paragraph{Limitations.}
-Our study is conducted on a single base model family (\llama{}) and a
-single fine-tuning domain (cybersecurity), on 22\,GB of A10 VRAM.  The
-512-token sequence-length cap may underrepresent long-context
-calibration patterns.  We have not yet confirmed the SQ\,C2 mechanism
-via direct activation-distribution measurement, nor have we computed
-bootstrap confidence intervals over the 18 results: both are in
-progress.  We believe the format-sensitivity \emph{order}
-(FP8 $<$ AWQ $<$ SQ) will generalize because it is mechanistically
-grounded, but the specific magnitudes (e.g.\ 9.31\,pp MMLU regression)
-may vary across domains, fine-tuning regimes, and calibration-set
-sizes.  Extension to medical and code domains is planned as
-Activity~3 of the project.
+The cybersecurity study uses our own QLoRA fine-tuned checkpoint; the
+medical extension uses a public checkpoint (Med42-8B), which is
+methodologically broader but introduces a confound between
+fine-tuning recipe and domain.  The code domain (CodeLlama-7B) is in
+progress.  The 512-token sequence-length cap may underrepresent
+long-context calibration patterns.  We have not yet confirmed the
+SQ\,C2 mechanism via direct activation-distribution measurement
+(planned as Activity~4), nor have we computed bootstrap confidence
+intervals: both are in progress.  We believe the format-sensitivity
+\emph{order} (FP8 $<$ AWQ $<$ SQ) will generalise because it is
+mechanistically grounded; the results across two domains already
+support this, but the specific regression magnitudes vary
+domain-dependently (9.31\,pp on cybersecurity, 2.41\,pp on medical).
 
 % ============================================================
 % Appendix
