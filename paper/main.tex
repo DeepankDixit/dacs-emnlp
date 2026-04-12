@@ -229,6 +229,18 @@ variation across quantized variants.
 \section{Methodology}
 \label{sec:method}
 
+Figure~\ref{fig:pipeline} provides an overview of our experimental design.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{fig1_pipeline.pdf}
+\caption{Experimental pipeline.  Left: fine-tuning stage producing the FP16 domain
+checkpoint.  Centre: the $3 \times 3$ calibration-format matrix; each cell shows
+the resulting MMLU accuracy.  The red-bordered cell (SQ\,INT8 $\times$ C2) is the
+anomalous result analysed in \S\ref{sec:anomaly}.  Right: dual-benchmark evaluation.}
+\label{fig:pipeline}
+\end{figure*}
+
 \subsection{Base Model and Domain Fine-Tuning}
 \label{sec:base}
 
@@ -358,6 +370,20 @@ near-baseline accuracy).  (ii) AWQ INT4 is mildly calibration-sensitive:
 C3 is the best AWQ condition on both benchmarks, but the maximum spread
 is $\le 0.75$\,pp.  (iii) SmoothQuant INT8 is calibration-critical: the
 MMLU spread across C1/C2/C3 is 9.31\,pp, dominated by the C2 regression.
+Figure~\ref{fig:sensitivity} visualises this hierarchy; the SQ\,INT8\,C2
+bar is the most visually salient feature, underscoring the severity of the
+self-calibration failure.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.72\textwidth]{fig2_sensitivity.pdf}
+\caption{MMLU accuracy for all nine (format $\times$ calibration) configurations.
+Bars are grouped by quantization format.  The dashed line marks the FP16
+baseline ($\approx$63\,\%).  The annotated drop ($-$9.31\,pp) for SQ\,INT8\,C2
+is the self-calibration failure analysed in \S\ref{sec:anomaly}.  Calibration
+spread (max$-$min within a format) is shown below each group.}
+\label{fig:sensitivity}
+\end{figure*}
 
 % ============================================================
 \section{Analysis}
@@ -545,6 +571,23 @@ Med42's self-generated text being strongly biomedical (more domain-aligned
 than our PubMedQA-based C3 corpus), a nuance that reinforces the
 complexity of calibration-data selection and strengthens the case for
 cross-format sensitivity maps over single-method recommendations.
+
+Figure~\ref{fig:crossdomain} places the two domains side by side on a
+common calibration axis, making the replication of the sensitivity
+hierarchy immediately visible.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.90\textwidth]{fig3_crossdomain.pdf}
+\caption{Cross-domain replication of calibration sensitivity.  Each panel
+plots MMLU accuracy for C1/C2/C3 within each quantization format on (left)
+the cybersecurity domain and (right) the medical domain.
+The \textbf{FP8 $<$ AWQ INT4 $<$ SQ INT8} sensitivity hierarchy holds in
+both domains; the C2 dip for SQ INT8 replicates across domains, though the
+magnitude differs (9.31\,pp cyber vs.\ 2.41\,pp medical), consistent with
+domain-specific activation-distribution coverage.}
+\label{fig:crossdomain}
+\end{figure*}
 
 \paragraph{Code domain.}
 The equivalent 9-model grid for CodeLlama-7B-Instruct (HumanEval and
