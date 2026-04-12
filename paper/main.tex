@@ -23,8 +23,9 @@
 \newcommand{\wmdp}{WMDP-Cyber}
 \newcommand{\llama}{Llama~3.1~8B~Instruct}
 
-\title{When Does Calibration Data Matter for Quantizing \\
-Fine-Tuned LLMs? A Cross-Format Sensitivity Study}
+\title{When Does Calibration Data Matter\\
+for Quantizing Fine-Tuned LLMs?\\
+A Cross-Format Sensitivity Study}
 
 \author{Deepank Dixit \\
   \texttt{deepankdixit0804@gmail.com}}
@@ -33,37 +34,39 @@ Fine-Tuned LLMs? A Cross-Format Sensitivity Study}
 
 \begin{document}
 
-\maketitle
-
-% ============================================================
-\begin{abstract}
-Post-training quantization (PTQ) of large language models (LLMs) requires a
-small calibration set, but the consequences of calibration-data choice remain
-poorly mapped---especially for \emph{domain fine-tuned} models, where the
-deployment distribution diverges from both the base-model pre-training
-distribution and from generic calibration corpora.  We present a systematic
-sensitivity study that varies (quantization format $\times$ calibration
-strategy) on a Llama~3.1~8B Instruct checkpoint fine-tuned on 83K
-cybersecurity examples, evaluated on \wmdp{} (1,987 MCQs) and MMLU
-(14,042 MCQs).  We cross three PTQ formats---AWQ INT4, SmoothQuant INT8, and
-FP8---with three calibration conditions: generic text (C1, The Pile),
-model self-generated text (C2), and domain-aligned text (C3, here called
-\dacs{}).  Three findings emerge.  \emph{First}, calibration sensitivity is
-sharply format-dependent: the C1$\to$C3 spread on MMLU is 0.00\,pp for FP8,
-0.30\,pp for AWQ INT4, and 9.31\,pp for SmoothQuant INT8; recommending a
-single ``best'' calibration strategy without conditioning on the quantization
-format is unsafe.  \emph{Second}, self-generated calibration---previously
-shown to be competitive on base models \citep{williams2025selfcalib}---causes
-a catastrophic 9.31\,pp MMLU regression for SmoothQuant on a fine-tuned
-model.  We trace this to activation-range underestimation during
-autoregressive decoding of domain-narrow text.  \emph{Third}, domain-aligned
-calibration partially rescues this failure mode ($+$6.30\,pp vs.\ C2) but
-does not uniformly dominate generic calibration.  We argue that cross-format
-sensitivity maps, not single-method proposals, are what practitioners
-deploying quantized domain LLMs actually need, and we release our
-18-configuration result table, calibration corpora, and evaluation harness to
-enable replication.
-\end{abstract}
+% Title + abstract span full page width; body below is two-column
+\twocolumn[
+  \maketitle
+  \begin{abstract}
+  Post-training quantization (PTQ) of large language models (LLMs) requires a
+  small calibration set, but the consequences of calibration-data choice remain
+  poorly mapped---especially for \emph{domain fine-tuned} models, where the
+  deployment distribution diverges from both the base-model pre-training
+  distribution and from generic calibration corpora.  We present a systematic
+  sensitivity study that varies (quantization format $\times$ calibration
+  strategy) on a Llama~3.1~8B Instruct checkpoint fine-tuned on 83K
+  cybersecurity examples, evaluated on \wmdp{} (1,987 MCQs) and MMLU
+  (14,042 MCQs).  We cross three PTQ formats---AWQ INT4, SmoothQuant INT8, and
+  FP8---with three calibration conditions: generic text (C1, The Pile),
+  model self-generated text (C2), and domain-aligned text (C3, here called
+  \dacs{}).  Three findings emerge.  \emph{First}, calibration sensitivity is
+  sharply format-dependent: the C1$\to$C3 spread on MMLU is 0.00\,pp for FP8,
+  0.30\,pp for AWQ INT4, and 9.31\,pp for SmoothQuant INT8; recommending a
+  single ``best'' calibration strategy without conditioning on the quantization
+  format is unsafe.  \emph{Second}, self-generated calibration---previously
+  shown to be competitive on base models \citep{williams2025selfcalib}---causes
+  a catastrophic 9.31\,pp MMLU regression for SmoothQuant on a fine-tuned
+  model.  We trace this to activation-range underestimation during
+  autoregressive decoding of domain-narrow text.  \emph{Third}, domain-aligned
+  calibration partially rescues this failure mode ($+$6.30\,pp vs.\ C2) but
+  does not uniformly dominate generic calibration.  We argue that cross-format
+  sensitivity maps, not single-method proposals, are what practitioners
+  deploying quantized domain LLMs actually need, and we release our
+  18-configuration result table, calibration corpora, and evaluation harness to
+  enable replication.
+  \end{abstract}
+  \vspace{1em}
+]
 
 % ============================================================
 \section{Introduction}

@@ -31,8 +31,8 @@
   columnsep=0.25in
 }
 
-% Two-column layout
-\twocolumn
+% Two-column layout activated via \twocolumn[...] inside \maketitle
+% (removed preamble \twocolumn so title/abstract can span full width)
 \setlength{\parindent}{0.25in}
 \setlength{\parskip}{0pt}
 
@@ -55,14 +55,14 @@
   \end{quote}
 }
 
-% Title formatting
+% Title formatting (renders full-width because \twocolumn[...] wraps it in main.tex)
 \makeatletter
 \renewcommand{\maketitle}{%
   \begin{center}
     {\LARGE\bfseries\@title\par}
-    \vspace{0.5em}
+    \vspace{0.6em}
     {\large\@author\par}
-    \vspace{0.3em}
+    \vspace{0.4em}
   \end{center}
 }
 \makeatother
