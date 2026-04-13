@@ -137,13 +137,17 @@ evaluated on \wmdp{} and MMLU using a shared logit-based MCQ scorer.
     domain fine-tuned LLM, spanning AWQ INT4, SmoothQuant INT8, and FP8
     over C1/C2/C3, measured on \wmdp{} and MMLU (18 accuracy numbers,
     reproduced exactly from our harness).
-  \item Identification and mechanistic explanation of a \emph{SmoothQuant
-    self-calibration failure mode} on fine-tuned models: C2 causes a
-    9.31\,pp MMLU regression, which we attribute to per-channel activation
-    maxima underestimation under narrow autoregressive decoding.  This is
-    a concrete deployment warning that qualifies
-    \citet{williams2025selfcalib}'s ``self-calibration is safe'' result
-    for base models.
+  \item The first empirical measurement of SmoothQuant calibration
+    sensitivity, and identification of a \emph{SmoothQuant self-calibration
+    failure mode} specific to fine-tuned models: C2 causes a 9.31\,pp
+    MMLU regression---more than $4{\times}$ the largest calibration effect
+    reported by \citet{williams2024calibration} for any quantization method
+    on base models (2.0\,pp for GPTQ).  We attribute this to per-channel
+    activation maxima underestimation under narrow autoregressive decoding,
+    a mechanism that cannot arise on base models or weight-only methods.
+    This qualifies \citet{williams2025selfcalib}'s ``self-calibration is
+    safe'' result: it holds for weight-only quantization on base models,
+    but fails for joint weight--activation quantization on fine-tuned models.
   \item A practitioner-oriented decision surface: we show that (a) FP8 is
     calibration-agnostic and is the safe default when the hardware allows
     it; (b) AWQ INT4 is mildly calibration-sensitive with domain
@@ -174,11 +178,16 @@ and showed it is competitive with external corpora on base models.
 \citet{he2025cola} (COLA) analyzes representativeness and diversity in
 activation space and proposes a curation framework that improves
 downstream reasoning capability retention for compressed base models.
-Our work differs in two axes: (i) we vary the quantization
-\emph{format} as an independent variable rather than fixing it; and
+Our work differs in three axes: (i) we vary the quantization
+\emph{format} as an independent variable rather than fixing it;
 (ii) the target model is a \emph{domain fine-tuned} checkpoint, not a
 base model, which changes the activation-range regime that calibration
-must cover.
+must cover; and (iii) we are the first to measure calibration
+sensitivity for \emph{SmoothQuant} (joint weight--activation INT8) and
+\emph{FP8}---both absent from \citet{williams2024calibration}, which
+covered only weight-only methods (GPTQ, AWQ, SparseGPT, Wanda).
+No prior work has empirically varied the calibration corpus for any
+joint weight--activation quantization method on any model class.
 
 \paragraph{Domain-aware compression.}
 Concurrent to our work, \citet{mixcal2026} (MixCal) proposes a novel
