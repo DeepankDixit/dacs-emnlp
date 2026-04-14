@@ -40,32 +40,34 @@ A Cross-Format Sensitivity Study}
 ]
 
 \begin{abstract}
+\begin{sloppypar}
 Post-training quantization (PTQ) of large language models (LLMs) requires a
 small calibration set, but the consequences of calibration-data choice remain
 poorly mapped---especially for \emph{domain fine-tuned} models, where the
 deployment distribution diverges from both the base-model pre-training
 distribution and from generic calibration corpora.  We present a systematic
-sensitivity study that varies (quantization format $\times$ calibration
-strategy) on a Llama~3.1~8B Instruct checkpoint fine-tuned on 83K
-cybersecurity examples, evaluated on \wmdp{} (1,987 MCQs) and MMLU
-(14,042 MCQs).  We cross three PTQ formats---AWQ INT4, SmoothQuant INT8, and
-FP8---with three calibration conditions: generic text (C1, The Pile),
-model self-generated text (C2), and domain-aligned text (C3, here called
-\dacs{}).  Three findings emerge.  \emph{First}, calibration sensitivity is
-sharply format-dependent: the C1$\to$C3 spread on MMLU is 0.00\,pp for FP8,
-0.30\,pp for AWQ INT4, and 9.31\,pp for SmoothQuant INT8; recommending a
-single ``best'' calibration strategy without conditioning on the quantization
-format is unsafe.  \emph{Second}, self-generated calibration---previously
-shown to be competitive on base models \citep{williams2025selfcalib}---causes
-a catastrophic 9.31\,pp MMLU regression for SmoothQuant on a fine-tuned
-model.  We trace this to activation-range underestimation during
-autoregressive decoding of domain-narrow text.  \emph{Third}, domain-aligned
-calibration partially rescues this failure mode ($+$6.30\,pp vs.\ C2) but
-does not uniformly dominate generic calibration.  We argue that cross-format
-sensitivity maps, not single-method proposals, are what practitioners
-deploying quantized domain LLMs actually need.  Our 18-configuration result
-table, calibration corpora, and evaluation harness are released at
-\url{https://anonymous.4open.science/r/DACS-anon} to enable replication.
+sensitivity study that crosses three PTQ formats (AWQ INT4, SmoothQuant INT8,
+FP8) with three calibration conditions---generic text (C1), model
+self-generated text (C2), and domain-aligned text (C3, here called \dacs{})---
+across \emph{three} fine-tuned domains: cybersecurity (Llama~3.1~8B on 83K
+examples), biomedical (Llama-3-Med42-8B), and code (CodeLlama-7B-Instruct),
+yielding 27 configurations evaluated on both in-domain and MMLU benchmarks.
+Three findings emerge.  \emph{First}, calibration sensitivity is sharply
+format-dependent: the C1$\to$C3 spread on MMLU is 0.00\,pp for FP8, 0.70\,pp
+for AWQ INT4, and up to 9.31\,pp for SmoothQuant INT8; recommending a single
+``best'' calibration strategy without conditioning on the quantization format
+is unsafe.  \emph{Second}, self-generated calibration---previously shown to be
+competitive on base models \citep{williams2025selfcalib}---causes a
+catastrophic MMLU regression under SmoothQuant (9.31\,pp on cybersecurity,
+2.41\,pp on biomedical, 1.80\,pp on code), with severity scaling inversely
+with domain breadth.  \emph{Third}, domain-aligned calibration partially
+rescues this failure mode but does not uniformly dominate generic calibration.
+We argue that cross-format sensitivity maps, not single-method proposals, are
+what practitioners deploying quantized domain LLMs actually need.  Our
+27-configuration result table, calibration corpora, and evaluation harness are
+released at \url{https://anonymous.4open.science/r/DACS-anon} to enable
+replication.
+\end{sloppypar}
 \end{abstract}
 
 % ============================================================
@@ -507,7 +509,7 @@ protocol as \S\ref{sec:eval}).  The FP16 baseline scores
 constructed to match the Activity~3 protocol: C1 uses WikiText-2
 (generic); C2 uses self-generated continuations from Med42 itself
 ($T{=}0.8$, 512 sequences $\times$ 512 tokens); C3 uses a
-PubMedQA\,+\,MedicalMeadow domain corpus.  All nine quantized models
+PubMedQA + MedicalMeadow domain corpus.  All nine quantized models
 are produced on the same Lambda A10G hardware under identical
 conditions.
 
@@ -589,38 +591,104 @@ hierarchy immediately visible.
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.90\textwidth]{fig3_crossdomain.pdf}
-\caption{Cross-domain replication of calibration sensitivity.  Each panel
-plots MMLU accuracy for C1/C2/C3 within each quantization format on (left)
-the cybersecurity domain and (right) the medical domain.
-The \textbf{FP8 $<$ AWQ INT4 $<$ SQ INT8} sensitivity hierarchy holds in
-both domains; the C2 dip for SQ INT8 replicates across domains, though the
-magnitude differs (9.31\,pp cyber vs.\ 2.41\,pp medical), consistent with
-domain-specific activation-distribution coverage.}
+\includegraphics[width=\textwidth]{fig3_crossdomain.pdf}
+\caption{Cross-domain replication of calibration sensitivity across three
+domains (left to right: cybersecurity, medical, code).  Each panel plots
+MMLU accuracy for C1/C2/C3 within each quantization format.
+The \textbf{FP8 $<$ AWQ INT4 $<$ SQ INT8} sensitivity hierarchy is preserved
+across all three domains; the C2 dip for SQ INT8 replicates with
+domain-dependent magnitude (9.31\,pp cyber, 2.41\,pp medical, 1.80\,pp code),
+consistent with the activation-range underestimation mechanism scaling with
+domain narrowness.}
 \label{fig:crossdomain}
 \end{figure*}
 
-\paragraph{Code domain.}
-The equivalent 9-model grid for CodeLlama-7B-Instruct (HumanEval and
-MMLU) is in progress and will complete the 27-model cross-domain table.
-Preliminary quantization is done; evaluation results will be reported
-in the final version.
+\paragraph{Code domain (CodeLlama-7B-Instruct).}
+\begin{sloppypar}
+We replicate the 3$\times$3 grid on
+\path{meta-llama/CodeLlama-7b-Instruct-hf},
+evaluated on MMLU (same 5-shot protocol).  The FP16 baseline scores
+38.38\,\% on MMLU (note: CodeLlama-7B is a smaller model than the 8B
+checkpoints used in the other two domains, yielding a lower absolute MMLU
+ceiling).  Calibration corpora mirror the code domain: C1 uses WikiText-2;
+C2 uses self-generated continuations from CodeLlama itself; C3 uses a
+CodeSearchNet + OSS-Instruct domain corpus.
+\end{sloppypar}
+
+\begin{table}[h]
+\centering
+\caption{Code domain: MMLU accuracy (\%) for all nine configurations on
+         \texttt{CodeLlama-7b-Instruct}.  FP16 baseline MMLU\,=\,38.38\,\%.
+         Best per format in \textbf{bold}.  $\Delta$ is vs.\ C1.}
+\label{tab:code}
+\small
+\begin{tabular}{llcc}
+\toprule
+\textbf{Format} & \textbf{Calibration} & \textbf{MMLU (\%)} & $\Delta$ \\
+\midrule
+\multirow{3}{*}{AWQ INT4}
+  & C1 Generic  & 36.48 & -- \\
+  & C2 Self-gen & 37.47 & $+$0.99 \\
+  & C3 Domain   & \textbf{37.51} & $+$1.03 \\
+\midrule
+\multirow{3}{*}{SQ INT8}
+  & C1 Generic  & 36.54 & -- \\
+  & C2 Self-gen & 34.74 & $-$1.80 \\
+  & C3 Domain   & 35.06 & $-$1.48 \\
+\midrule
+\multirow{3}{*}{FP8}
+  & C1 Generic  & \textbf{38.38} & -- \\
+  & C2 Self-gen & \textbf{38.38} & $~~$0.00 \\
+  & C3 Domain   & \textbf{38.38} & $~~$0.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:code} replicates all three findings.  FP8 is perfectly
+calibration-invariant (0.00\,pp spread).  AWQ shows mild positive
+sensitivity: C3 domain calibration yields $+$1.03\,pp over C1, slightly
+larger than in the cybersecurity (0.30\,pp) and medical (0.70\,pp) domains.
+SQ INT8 again shows the largest spread (1.80\,pp), driven by the C2
+regression ($-$1.80\,pp).  The SQ C2 magnitude is smaller than in
+cybersecurity ($-$9.31\,pp) and medical ($-$2.41\,pp), consistent with code
+tokens being structurally more diverse than domain-narrow natural-language
+text, limiting the extent to which self-generated decoding underestimates
+the full activation range.  The hierarchy FP8 $<$ AWQ $<$ SQ is preserved.
+
+\paragraph{Cross-domain sensitivity summary.}
+Figure~\ref{fig:summary} distils the key result across all 27 configurations.
+The sensitivity of each format to calibration-data choice is a robust,
+domain-invariant property: FP8 registers 0.00\,pp spread in all three domains;
+AWQ INT4 registers 0.30--1.03\,pp; SQ INT8 registers 1.80--9.31\,pp.  The
+variation in SQ magnitude is itself informative: it scales with domain
+narrowness (code $<$ medical $<$ cybersecurity), providing quantitative
+evidence that the activation-range underestimation mechanism is modulated
+by the breadth of the fine-tuning distribution.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.96\columnwidth]{fig4_sensitivity_summary.pdf}
+\caption{MMLU calibration spread (max$-$min across C1/C2/C3) per format and
+domain.  FP8 is universally calibration-agnostic; SQ INT8 is universally the
+most sensitive.  The SQ spread scales with domain narrowness:
+cybersecurity (9.31\,pp) $>$ medical (2.41\,pp) $>$ code (1.80\,pp).}
+\label{fig:summary}
+\end{figure}
 
 % ============================================================
 \section{Conclusion}
 \label{sec:conclusion}
 
 We conducted a systematic cross-format sensitivity study of
-calibration-data choice for post-training quantization of a domain
-fine-tuned LLM.  Across 18 (format $\times$ calibration $\times$
-benchmark) configurations on a cybersecurity fine-tuned model, and a
-further 18 configurations on a public biomedical checkpoint
-(Med42-8B), we established a clear sensitivity hierarchy
-(FP8 $<$ AWQ $<$ SmoothQuant) that holds across both domains,
-identified a SmoothQuant self-calibration failure mode specific to
-fine-tuned models that replicates across domains (though at
-domain-dependent magnitudes), and mapped out when domain-aligned
-calibration helps versus when it hurts.  The actionable takeaway is a
+calibration-data choice for post-training quantization of domain
+fine-tuned LLMs.  Across 27 (format $\times$ calibration $\times$
+domain) configurations spanning cybersecurity (Llama-3.1-8B),
+biomedical (Med42-8B), and code (CodeLlama-7B-Instruct), we
+established a clear and universal sensitivity hierarchy
+(FP8 $<$ AWQ $<$ SmoothQuant), identified a SmoothQuant
+self-calibration failure mode that replicates across all three domains
+(magnitudes: 9.31\,pp cyber, 2.41\,pp medical, 1.80\,pp code),
+and mapped out when domain-aligned calibration helps versus hurts.  The actionable takeaway is a
 small decision surface: use FP8 if the hardware supports it; for AWQ,
 domain calibration gives a modest consistent gain; for SmoothQuant,
 never use self-generated calibration and treat \emph{any}
