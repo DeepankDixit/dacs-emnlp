@@ -63,18 +63,83 @@
     "mmlu": 60.6965
   },
   "_metadata": {
-    "timestamp": "2026-04-11T05:57:36.024133",
+    "timestamp": "2026-04-14T16:50:39.409595",
     "limit": null,
     "domains": [
-      "med"
+      "code"
     ],
     "formats": [
-      "int8_sq"
+      "int4_awq",
+      "int8_sq",
+      "fp8"
     ],
     "conds": [
       "c1",
       "c2",
       "c3"
     ]
+  },
+  "code_int4_awq_c1": {
+    "domain": "code",
+    "format": "int4_awq",
+    "cond": "c1",
+    "humaneval": 1.8292682926829267,
+    "mmlu": 36.4763
+  },
+  "code_int4_awq_c2": {
+    "domain": "code",
+    "format": "int4_awq",
+    "cond": "c2",
+    "humaneval": 0.0,
+    "mmlu": 37.4733
+  },
+  "code_int4_awq_c3": {
+    "domain": "code",
+    "format": "int4_awq",
+    "cond": "c3",
+    "humaneval": 0.0,
+    "mmlu": 37.5089
+  },
+  "code_int8_sq_c1": {
+    "domain": "code",
+    "format": "int8_sq",
+    "cond": "c1",
+    "humaneval": 0.0,
+    "mmlu": 36.5404
+  },
+  "code_int8_sq_c2": {
+    "domain": "code",
+    "format": "int8_sq",
+    "cond": "c2",
+    "humaneval": 0.0,
+    "mmlu": 34.7386
+  },
+  "code_int8_sq_c3": {
+    "domain": "code",
+    "format": "int8_sq",
+    "cond": "c3",
+    "humaneval": 0.0,
+    "mmlu": 35.0591
+  },
+  "code_fp8_c1": {
+    "domain": "code",
+    "format": "fp8",
+    "cond": "c1",
+    "humaneval": 0.0,
+    "mmlu": 38.3848
+  },
+  "code_fp8_c2": {
+    "domain": "code",
+    "format": "fp8",
+    "cond": "c2",
+    "humaneval": 0.0,
+    "mmlu": 38.3848
+  },
+  "code_fp8_c3": {
+    "domain": "code",
+    "format": "fp8",
+    "cond": "c3",
+    "humaneval": 0.0,
+    "mmlu": 38.3848
   }
 }
