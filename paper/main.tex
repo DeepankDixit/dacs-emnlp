@@ -27,8 +27,7 @@
 for Quantizing Fine-Tuned LLMs?\\
 A Cross-Format Sensitivity Study}
 
-\author{Deepank Dixit \\
-  \texttt{deepankdixit0804@gmail.com}}
+\author{Anonymous Submission}
 
 \date{}
 
@@ -64,9 +63,9 @@ autoregressive decoding of domain-narrow text.  \emph{Third}, domain-aligned
 calibration partially rescues this failure mode ($+$6.30\,pp vs.\ C2) but
 does not uniformly dominate generic calibration.  We argue that cross-format
 sensitivity maps, not single-method proposals, are what practitioners
-deploying quantized domain LLMs actually need, and we release our
-18-configuration result table, calibration corpora, and evaluation harness to
-enable replication.
+deploying quantized domain LLMs actually need.  Our 18-configuration result
+table, calibration corpora, and evaluation harness are released at
+\url{https://anonymous.4open.science/r/DACS-anon} to enable replication.
 \end{abstract}
 
 % ============================================================
@@ -174,11 +173,16 @@ and showed it is competitive with external corpora on base models.
 \citet{he2025cola} (COLA) analyzes representativeness and diversity in
 activation space and proposes a curation framework that improves
 downstream reasoning capability retention for compressed base models.
-Our work differs in two axes: (i) we vary the quantization
-\emph{format} as an independent variable rather than fixing it; and
+Our work differs in three axes: (i) we vary the quantization
+\emph{format} as an independent variable rather than fixing it;
 (ii) the target model is a \emph{domain fine-tuned} checkpoint, not a
 base model, which changes the activation-range regime that calibration
-must cover.
+must cover; and (iii) we are the first to measure calibration
+sensitivity for \emph{SmoothQuant} (joint weight--activation INT8) and
+\emph{FP8}---both absent from \citet{williams2024calibration}, which
+covered only weight-only methods (GPTQ, AWQ, SparseGPT, Wanda).
+No prior work has empirically varied the calibration corpus for any
+joint weight--activation quantization method on any model class.
 
 \paragraph{Domain-aware compression.}
 Concurrent to our work, \citet{mixcal2026} (MixCal) proposes a novel
