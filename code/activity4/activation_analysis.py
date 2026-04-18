@@ -28,7 +28,7 @@ What this script measures:
 Domains and models:
   med   → m42-health/Llama3-Med42-8B              (download from HF, gated)
   code  → meta-llama/CodeLlama-7b-Instruct-hf     (download from HF)
-  cyber → ./outputs/cyber_fp16/                   (rebuild from LoRA adapter)
+  cyber → ./outputs/cybersec_analyst_merged_fp16/  (upload from Mac or rebuild from LoRA)
 
 Usage:
   python code/activity4/activation_analysis.py --domain med
@@ -78,8 +78,8 @@ SQ_TARGET_PROJECTIONS = [
 
 CYBER_DOMAIN_CFG = {
     "hf_id":        None,                              # no HF id — local only
-    "local_fp16":   "./outputs/cyber_fp16/",
-    "c3_corpus":    "./outputs/dacs_calib_512.jsonl",  # Activity 2 DACS corpus
+    "local_fp16":   "./outputs/cybersec_analyst_merged_fp16/",
+    "c3_corpus":    "./data/dacs_calib_512.jsonl",     # Activity 2 DACS domain corpus
     "c2_selfgen":   "./outputs/cyber_c2_selfgen_512.jsonl",
     "out_prefix":   "cyber",
 }

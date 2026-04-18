@@ -2,10 +2,11 @@
 DACS Project — Activity 3 Common Configuration
 ================================================
 Shared constants for Activity 3 (multi-domain extension).
-Two domains, two PUBLIC checkpoints, no fine-tuning.
+Three domains: two PUBLIC checkpoints + one local fine-tune.
 
   med   → meta-llama/Llama-3-8B-Instruct fine-tuned as m42-health/Llama3-Med42-8B
   code  → meta-llama/CodeLlama-7b-Instruct-hf
+  cyber → ./outputs/cybersec_analyst_merged_fp16/  (local; upload from Mac)
 
 Import these in every activity3_* script to avoid path typos.
 """
@@ -44,6 +45,20 @@ DOMAINS = {
             "Refactor this to be more efficient:",
         ],
     },
+    "cyber": {
+        "hf_id":            None,                              # local only
+        "local_fp16":       "./outputs/cybersec_analyst_merged_fp16/",
+        "c3_corpus":        "./data/dacs_calib_512.jsonl",     # Activity 2 DACS domain corpus
+        "c2_selfgen":       "./outputs/cyber_c2_selfgen_512.jsonl",
+        "domain_bench":     "wmdp_cyber",
+        "out_prefix":       "cyber",
+        "seed_prompts":     [
+            "Explain how to detect",
+            "Describe a common attack technique involving",
+            "What are the indicators of compromise for",
+            "How would you respond to a security incident involving",
+        ],
+    },
 }
 
 # Shared generic calibration corpus (C1). Same file used by Activity 2.
@@ -73,7 +88,7 @@ def require_calib(path: str) -> str:
         raise FileNotFoundError(
             f"Calibration file not found: {path}\n"
             f"  C1: run prepare_c1_calib.py\n"
-            f"  C2: run generate_self_calib_act3.py --domain <med|code>\n"
+            f"  C2: run generate_self_calib_act3.py --domain <med|code|cyber>\n"
             f"  C3: run build_med_c3_corpus.py OR build_code_c3_corpus.py"
         )
     return path
