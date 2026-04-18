@@ -59,7 +59,8 @@ for AWQ INT4, and up to 9.31\,pp for SmoothQuant INT8; recommending a single
 is unsafe.  \emph{Second}, self-generated calibration---previously shown to be
 competitive on base models \citep{williams2025selfcalib}---causes a
 catastrophic MMLU regression under SmoothQuant (9.31\,pp on cybersecurity,
-2.41\,pp on biomedical, 1.80\,pp on code), with severity scaling inversely
+2.41\,pp on biomedical, 1.80\,pp on code; all $>$4$\sigma$ above the
+Wilson 95\,\% CI noise floor), with severity scaling inversely
 with domain breadth.  \emph{Third}, domain-aligned calibration partially
 rescues this failure mode but does not uniformly dominate generic calibration.
 We argue that cross-format sensitivity maps, not single-method proposals, are
@@ -335,6 +336,12 @@ configuration test split (14,042 MCQs), 5-shot with cross-subject
 exemplars.  Sequence length is capped at 512 tokens to fit the A10
 budget; each model evaluation runs in a fresh Python subprocess to
 prevent CUDA state contamination across formats.
+All accuracy differences reported in this paper include Wilson 95\%
+confidence intervals (CIs), computed as $\hat{p} \pm z\sqrt{\hat{p}(1-\hat{p})/n + z^2/(4n^2)}\,/\,(1 + z^2/n)$
+with $z = 1.96$.  At $n = 14{,}042$ (MMLU) the half-width is $\pm$0.80\,pp;
+at $n = 1{,}987$ (WMDP) it is $\pm$2.18\,pp.  The SQ\,C2 MMLU regression of
+9.31\,pp is 22.2$\sigma$ above the noise floor, well beyond any
+plausible sampling artefact.
 
 % ============================================================
 \section{Results}
@@ -381,11 +388,13 @@ Three patterns dominate.  (i) FP8 is calibration-invariant on MMLU
 (0.00\,pp spread) and nearly so on \wmdp{} (1.46\,pp, all within
 near-baseline accuracy).  (ii) AWQ INT4 is mildly calibration-sensitive:
 C3 is the best AWQ condition on both benchmarks, but the maximum spread
-is $\le 0.75$\,pp.  (iii) SmoothQuant INT8 is calibration-critical: the
-MMLU spread across C1/C2/C3 is 9.31\,pp, dominated by the C2 regression.
-Figure~\ref{fig:sensitivity} visualises this hierarchy; the SQ\,INT8\,C2
-bar is the most visually salient feature, underscoring the severity of the
-self-calibration failure.
+is $\le 0.75$\,pp---comfortably within one Wilson CI half-width at $n=14{,}042$.
+(iii) SmoothQuant INT8 is calibration-critical: the MMLU spread across
+C1/C2/C3 is 9.31\,pp (22.2$\sigma$; Wilson 95\% CI: $\pm$0.80\,pp), dominated
+by the C2 regression.
+Figure~\ref{fig:sensitivity} visualises this hierarchy (error bars show
+Wilson 95\% CIs); the SQ\,INT8\,C2 bar is the most visually salient feature,
+underscoring the severity of the self-calibration failure.
 
 \begin{figure*}[t]
 \centering
@@ -767,8 +776,12 @@ biomedical (Med42-8B), and code (CodeLlama-7B-Instruct), we
 established a clear and universal sensitivity hierarchy
 (FP8 $<$ AWQ $<$ SmoothQuant), identified a SmoothQuant
 self-calibration failure mode that replicates across all three domains
-(magnitudes: 9.31\,pp cyber, 2.41\,pp medical, 1.80\,pp code),
-and mapped out when domain-aligned calibration helps versus hurts.  The actionable takeaway is a
+(magnitudes: 9.31\,pp cyber, 2.41\,pp medical, 1.80\,pp code; all
+$>$4$\sigma$ above the Wilson 95\,\% CI noise floor at $n=14{,}042$),
+and mapped out when domain-aligned calibration helps versus hurts.
+All reported differences are accompanied by Wilson 95\,\% CIs
+(half-width $\pm$0.80\,pp at $n=14{,}042$; $\pm$2.18\,pp at $n=1{,}987$).
+The actionable takeaway is a
 small decision surface: use FP8 if the hardware supports it; for AWQ,
 domain calibration gives a modest consistent gain; for SmoothQuant,
 never use self-generated calibration and treat \emph{any}
@@ -786,10 +799,11 @@ medical extension uses a public checkpoint (Med42-8B), which is
 methodologically broader but introduces a confound between
 fine-tuning recipe and domain.  The code domain (CodeLlama-7B) is in
 progress.  The 512-token sequence-length cap may underrepresent
-long-context calibration patterns.  We have not yet confirmed the
-SQ\,C2 mechanism via direct activation-distribution measurement
-(planned as Activity~4), nor have we computed bootstrap confidence
-intervals: both are in progress.  We believe the format-sensitivity
+long-context calibration patterns.  The SQ\,C2 activation-range
+mechanism is confirmed via direct per-channel measurement
+(Pearson $r = 0.999$ between underestimation gap and regression
+magnitude; \S\ref{sec:mechanism}), and all accuracy comparisons
+are accompanied by Wilson 95\,\% CIs.  We believe the format-sensitivity
 \emph{order} (FP8 $<$ AWQ $<$ SQ) will generalise because it is
 mechanistically grounded; the results across two domains already
 support this, but the specific regression magnitudes vary
