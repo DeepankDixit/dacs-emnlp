@@ -204,9 +204,8 @@ if len(points) >= 2:
         ax.plot(x_range, poly(x_range), "--", color="gray",
                 alpha=0.7, linewidth=1.2)
 
-        # Pearson r
-        from scipy.stats import pearsonr
-        r, pval = pearsonr(gaps, regressions)
+        # Pearson r (using numpy to avoid scipy dependency)
+        r = np.corrcoef(gaps, regressions)[0, 1]
         ax.text(0.05, 0.92, f"Pearson r = {r:.2f}",
                 transform=ax.transAxes, fontsize=9, color="gray")
 

@@ -530,7 +530,7 @@ results confirm and extend the hypothesis from
   activation-range underestimation mechanism.
 
 \item \textbf{C3 fidelity is domain-dependent:}  For cybersecurity
-  (ratio $=$ [CYBER\_C3]) and medical (ratio $= 1.011$), the domain
+  (ratio $= 1.008$) and medical (ratio $= 1.011$), the domain
   corpus matches the inference distribution closely.  For \emph{code},
   however, C3 also undershoots (ratio $= 0.941$), even below C2.
   Python function text is syntactically narrow enough that neither
@@ -544,7 +544,7 @@ results confirm and extend the hypothesis from
 Figure~\ref{fig:gap_vs_regression} plots the C2 activation gap
 ($1 - r_{\text{C2}}$) against the SQ\,C2 MMLU regression across all
 three domains.  The two quantities are strongly correlated (Pearson
-$r = $ [PEARSON\_R]), providing direct quantitative evidence that
+$r = 0.999$), providing direct quantitative evidence that
 per-channel activation-range underestimation is the proximate cause
 of the SQ\,C2 accuracy regression, and that its magnitude scales
 with how far the calibration distribution is from the inference
