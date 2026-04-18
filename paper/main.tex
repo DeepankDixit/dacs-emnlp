@@ -217,6 +217,25 @@ QuIP\# \citep{tseng2024quip}, and AQLM \citep{egiazarian2024aqlm} are
 complementary methods we do not cover here.  \citet{zhu2024survey}
 survey the broader LLM compression landscape.
 
+\paragraph{Activation outliers and quantization sensitivity.}
+\citet{dettmers2022llmint8} identified that transformer activations develop
+massive outlier features in specific hidden dimensions at scale---features that
+occupy only $\sim$0.01\,\% of values yet account for the majority of
+quantization error under na\"{i}ve INT8 schemes.  SmoothQuant
+\citep{xiao2023smoothquant} was designed specifically to address this: its
+per-channel smoothing transform migrates outlier magnitude from activations to
+weights where it can be absorbed more cheaply.  The smoothing scale is set
+from calibration activation maxima, so SmoothQuant's accuracy depends directly
+on whether the calibration corpus excites the same outlier channels as the
+deployment distribution.  \citet{hubara2021accuratept} showed that even for
+simpler PTQ methods, calibration set \emph{composition}---not just
+size---determines whether activation statistics faithfully represent the
+deployment range.  Our work extends both observations to the joint
+weight--activation setting on fine-tuned models, where the domain shift
+between calibration and deployment is a first-order variable: fine-tuned
+self-generated text systematically underexcites the outlier channels that
+general-domain inference will encounter.
+
 \paragraph{Domain adaptation with quantized weights.}
 QLoRA \citep{dettmers2023qlora} and LoRA \citep{hu2021lora} demonstrate
 that quantized models can be domain-adapted via low-rank updates; we
@@ -763,6 +782,52 @@ most sensitive.  The SQ spread scales with domain narrowness:
 cybersecurity (9.31\,pp) $>$ medical (2.41\,pp) $>$ code (1.80\,pp).}
 \label{fig:summary}
 \end{figure}
+
+% ============================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{A practitioner decision protocol.}
+The three findings together suggest a concrete decision procedure for
+deploying a quantized domain fine-tuned LLM.  \emph{First}, check whether
+target hardware supports FP8 natively.  If yes, calibration-data choice is
+immaterial: use any convenient generic corpus.  \emph{Second}, if AWQ INT4
+is the target, domain calibration is a safe default that yields small
+consistent gains (0.22--0.55\,pp) with no observed downside.  \emph{Third},
+if SmoothQuant INT8 is required, treat calibration as a deployment-critical
+decision: any corpus that underestimates inference-time activation ranges
+will degrade MMLU-style general capability proportionally to the
+underestimation gap.  Self-generated text from a domain fine-tuned model is
+the highest-risk option because domain specialisation narrows the
+activation distribution by construction.  Generic text such as WikiText-2
+is not only safer but, counterintuitively, better for MMLU retention than
+domain-specific corpora---because its breadth matches the breadth of the
+evaluation distribution.
+
+\paragraph{A precise boundary condition for self-calibration.}
+The self-calibration failure we observe requires three conditions to coincide:
+(i) the model is domain fine-tuned (narrowing its activation distribution),
+(ii) the quantization method is joint weight--activation (making the
+smoothing vector a direct function of that narrow distribution), and
+(iii) the deployment benchmark is \emph{broader} than the fine-tuned domain
+(ensuring inference activations regularly exceed the calibrated range).
+Removing any one breaks the failure.  This explains why SQ\,C2 on
+\wmdp{}---a cybersecurity evaluation matching the fine-tuned domain---shows
+only $-$1.82\,pp, while MMLU (57 subjects) shows $-$9.31\,pp.  It also
+explains why the regression magnitude scales with domain breadth across the
+three domains: cybersecurity is the narrowest domain (9.31\,pp), code the
+broadest (1.80\,pp), with biomedical between (2.41\,pp).
+
+\paragraph{Activation range as a pre-quantization diagnostic.}
+The Pearson $r = 0.999$ between per-channel activation underestimation gap
+and MMLU regression suggests a lightweight pre-quantization screening step:
+measure the mean range ratio of a candidate calibration corpus against a
+small general-domain reference set, before committing to full SmoothQuant
+conversion.  If the ratio falls below $\sim$0.95, the corpus should be
+augmented with generic text.  The per-channel measurement requires only a
+forward pass over 128 samples and is negligible in cost relative to SQ
+quantization itself.  We leave formal calibration of this threshold across
+model families as future work.
 
 % ============================================================
 \section{Conclusion}
