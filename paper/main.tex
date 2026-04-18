@@ -578,7 +578,7 @@ is too syntactically narrow to cover MMLU range).}
 \includegraphics[width=0.96\columnwidth]{fig6_kl_vs_regression.pdf}
 \caption{C2 activation underestimation gap ($1 - $ mean range ratio)
 vs.\ SQ\,C2 MMLU regression across the three domains.  The strong
-correlation (Pearson $r = $ [PEARSON\_R]) confirms that
+correlation (Pearson $r = 0.999$) confirms that
 activation-range underestimation is the proximate mechanism driving
 the SQ\,C2 accuracy failure.}
 \label{fig:gap_vs_regression}
@@ -797,8 +797,8 @@ like ours is the diagnostic prior those methods can target.
 The cybersecurity study uses our own QLoRA fine-tuned checkpoint; the
 medical extension uses a public checkpoint (Med42-8B), which is
 methodologically broader but introduces a confound between
-fine-tuning recipe and domain.  The code domain (CodeLlama-7B) is in
-progress.  The 512-token sequence-length cap may underrepresent
+fine-tuning recipe and domain.  The code domain (CodeLlama-7B-Instruct) results are complete and
+reported in \S\ref{sec:medical}.  The 512-token sequence-length cap may underrepresent
 long-context calibration patterns.  The SQ\,C2 activation-range
 mechanism is confirmed via direct per-channel measurement
 (Pearson $r = 0.999$ between underestimation gap and regression
