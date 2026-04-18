@@ -77,6 +77,6 @@ def main(domain: str):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--domain", required=True, choices=["med", "code"])
+    p.add_argument("--domain", required=True, choices=["med", "code", "cyber"])
     args = p.parse_args()
     main(args.domain)
