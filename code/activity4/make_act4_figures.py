@@ -95,6 +95,7 @@ else:
 
         # Annotate the C2 underestimation gap
         c2_ratio = agg["c2"]["mean_range_ratio"]
+        c3_ratio = agg["c3"]["mean_range_ratio"]
         gap = 1.0 - c2_ratio
         if gap > 0.005:
             ax.annotate(
@@ -107,10 +108,22 @@ else:
                 arrowprops=dict(arrowstyle="-", color="#E05C34", lw=0.8),
             )
 
+        # If C3 also underestimates (e.g. code domain), annotate with a note
+        if c3_ratio < c2_ratio:
+            ax.annotate(
+                "C3 < C2:\ncode text\nnarrow",
+                xy=(2, c3_ratio),
+                xytext=(2.0, c3_ratio - 0.035),
+                fontsize=6.5,
+                color="#70AD47",
+                ha="center",
+                arrowprops=dict(arrowstyle="-", color="#70AD47", lw=0.7),
+            )
+
         ax.set_title(DOMAIN_LABELS[domain], fontsize=9, fontweight="bold", pad=6)
         ax.set_ylabel("Mean per-channel range ratio\nvs. MMLU inference" if domain == available_domains[0] else "",
                       fontsize=8)
-        ax.set_ylim(0.80, 1.08)
+        ax.set_ylim(0.88, 1.08)
         ax.tick_params(axis="x", labelsize=8)
         ax.tick_params(axis="y", labelsize=8)
         ax.set_facecolor("#FAFAFA")
@@ -132,8 +145,9 @@ else:
 
     fig.suptitle(
         "Fig. 5: Per-channel input activation range under each calibration condition\n"
-        "relative to MMLU inference. Ratio < 1 indicates underestimation → SQ error.",
-        fontsize=9, y=1.02
+        "relative to MMLU inference. C2 underestimates in all domains; C3 ≈ MMLU for cyber/med,\n"
+        "but also underestimates for code (code text is too syntactically narrow to cover MMLU range).",
+        fontsize=8.5, y=1.03
     )
     plt.tight_layout(rect=[0, 0.08, 1, 1])
     out5 = os.path.join(OUT_DIR, "fig5_activation_ranges.pdf")
