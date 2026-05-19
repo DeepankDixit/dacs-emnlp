@@ -42,7 +42,7 @@ ALL_MODELS = {
     "int4_awq_c3":  ("./outputs/cyber_int4_awq_c3/",  "AWQ INT4",  "C3 DACS"),
 
     # INT8 SmoothQuant
-    "int8_sq_c1":   ("./outputs/cyber_int8_sq_c1/",   "SQ INT8",   "C1 C4"),
+    "int8_sq_c1":   ("./outputs/cyber_int8_sq_c1_wikitext/",   "SQ INT8",   "C1 WikiText-2"),
     "int8_sq_c2":   ("./outputs/cyber_int8_sq_c2/",   "SQ INT8",   "C2 Self-gen"),
     "int8_sq_c3":   ("./outputs/cyber_int8_sq_c3/",   "SQ INT8",   "C3 DACS"),
 

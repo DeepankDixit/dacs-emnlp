@@ -1,0 +1,17 @@
+{
+  "int8_sq_c1": {
+    "format": "SQ INT8",
+    "calibration": "C1 WikiText-2",
+    "mmlu": 59.0016
+  },
+  "_metadata": {
+    "timestamp": "2026-05-19T08:15:31.132245",
+    "limit": null,
+    "models_evaluated": [
+      "int8_sq_c1"
+    ],
+    "benchmarks": [
+      "mmlu"
+    ]
+  }
+}
