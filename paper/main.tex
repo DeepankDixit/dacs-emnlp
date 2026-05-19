@@ -36,12 +36,12 @@ A Cross-Format Sensitivity Study}
 \begin{sloppypar}
 Post-training quantization (PTQ) of large language models (LLMs) requires a
 small calibration set, but the consequences of calibration-data choice remain
-poorly mapped---especially for \emph{domain fine-tuned} models, where the
+poorly mapped, especially for \emph{domain fine-tuned} models, where the
 deployment distribution diverges from both the base-model pre-training
 distribution and from generic calibration corpora.  We present a systematic
 sensitivity study that crosses three PTQ formats (AWQ INT4, SmoothQuant INT8,
-FP8) with three calibration conditions---generic text (C1), model
-self-generated text (C2), and domain-aligned text (C3, here called \dacs{})---
+FP8) with three calibration conditions: generic text (C1), model
+self-generated text (C2), and domain-aligned text (C3, here called \dacs{}),
 across \emph{three} fine-tuned domains: cybersecurity (Llama~3.1~8B on 83K
 examples), biomedical (Llama-3-Med42-8B), and code (CodeLlama-7B-Instruct),
 yielding 27 configurations evaluated on both in-domain and MMLU benchmarks.
@@ -50,8 +50,8 @@ format-dependent: the max calibration spread on MMLU is 0.00\,pp for FP8,
 up to 1.03\,pp for AWQ INT4, and up to 9.08\,pp for SmoothQuant INT8;
 recommending a single ``best'' calibration strategy without conditioning on
 the quantization format is unsafe.  \emph{Second}, self-generated
-calibration---previously shown to be competitive on base models
-\citep{williams2025selfcalib}---causes a substantial MMLU regression under
+calibration, previously shown to be competitive on base models
+\citep{williams2025selfcalib}, causes a substantial MMLU regression under
 SmoothQuant on every domain tested (9.08\,pp on cybersecurity, 2.41\,pp on
 biomedical, 1.80\,pp on code; all $>$3$\sigma$ above the Wilson 95\,\% CI
 noise floor), with severity scaling inversely with domain breadth.  The
@@ -76,8 +76,8 @@ replication.
 Post-training quantization (PTQ) is the default route to deploying large
 language models (LLMs) on commodity hardware: it reduces memory and compute
 without requiring retraining or gradient access.  Every modern PTQ recipe
-depends on a small \emph{calibration set}---typically 128--512 unlabeled
-sequences---that drives scale factors, smoothing vectors, clipping
+depends on a small \emph{calibration set}, typically 128--512 unlabeled
+sequences, which drives scale factors, smoothing vectors, clipping
 thresholds, or activation-aware rescaling.  \citet{williams2024calibration}
 established that this choice is not innocuous: calibration data source can
 swing downstream accuracy by several percentage points on base models.
@@ -95,15 +95,15 @@ cheaper inference.  In that setting, three open questions remain:
   \item \textbf{Does calibration sensitivity transfer across quantization
     formats?}  Generic calibration is a well-studied choice for GPTQ
     \citep{frantar2022gptq} and AWQ \citep{lin2023awq}, but how do AWQ,
-    SmoothQuant, and FP8---methods with qualitatively different dependence
-    on calibration statistics---compare under the \emph{same} calibration
+    SmoothQuant, and FP8, methods with qualitatively different dependence
+    on calibration statistics, compare under the \emph{same} calibration
     interventions?
   \item \textbf{Does self-generated calibration remain safe for
     fine-tuned models?}  If the fine-tuned model's output distribution
     is narrower than the inference distribution (likely, by design, after
     domain fine-tuning), self-generated activation statistics may
     systematically underestimate activation range.
-  \item \textbf{Can we predict---before paying the quantization cost---which
+  \item \textbf{Can we predict, before paying the quantization cost, which
     (format, calibration) pairs will degrade?}  A lightweight diagnostic
     metric over activation distributions would let practitioners triage
     configurations without a full evaluation loop.
@@ -132,32 +132,25 @@ evaluated on \wmdp{} and MMLU using a shared logit-based MCQ scorer.
 
 \paragraph{Contributions.}  Our contributions are deliberately scoped to
 \emph{characterization}, not method proposal:
-\begin{enumerate}
-  \item A cross-format sensitivity map for calibration data on a
-    domain fine-tuned LLM, spanning AWQ INT4, SmoothQuant INT8, and FP8
-    over C1/C2/C3, measured on \wmdp{} and MMLU (18 accuracy numbers,
-    reproduced exactly from our harness).
-  \item Identification and mechanistic explanation of a \emph{SmoothQuant
-    self-calibration failure mode} on fine-tuned models: C2 causes a
-    9.08\,pp MMLU regression, which we attribute to per-channel activation
-    maxima underestimation under narrow autoregressive decoding.  This is
-    a concrete deployment warning that qualifies
-    \citet{williams2025selfcalib}'s ``self-calibration is safe'' result
-    for base models.
-  \item A practitioner-oriented decision surface: we show that (a) FP8 is
-    calibration-agnostic and is the safe default when the hardware allows
-    it; (b) AWQ INT4 is mildly calibration-sensitive with domain
-    calibration providing a small but consistent gain
-    ($+$0.55\,pp WMDP, $+$0.22\,pp MMLU); and (c) SmoothQuant is
-    calibration-critical and self-generated data should be avoided.
-\end{enumerate}
-
-We do \emph{not} claim that domain-specific calibration universally
-outperforms generic calibration: the data contradicts such a claim for
-SmoothQuant on MMLU.  We frame this paper as an empirical map, not a
-method advocacy, and situate it against concurrent method-proposal work
-(\S\ref{sec:related}) such as MixCal \citep{mixcal2026} and per-task
-mixed-precision allocation \citep{levi2026pertask}.
+(1) a cross-format sensitivity map (AWQ INT4 / SmoothQuant INT8 / FP8
+$\times$ C1/C2/C3) on a domain fine-tuned LLM, replicated across three
+domains for 27 total configurations;
+(2) identification and mechanistic explanation of a SmoothQuant
+self-calibration failure mode on fine-tuned models (9.08\,pp MMLU
+regression on cybersecurity), attributed to per-channel activation
+underestimation under narrow autoregressive decoding, a deployment
+warning that qualifies \citet{williams2025selfcalib}'s
+``self-calibration is safe'' result on base models;
+(3) a practitioner decision surface: FP8 is calibration-agnostic and
+the safe default when hardware allows; AWQ INT4 is mildly sensitive
+with domain calibration providing small consistent gains
+($+$0.55\,pp WMDP, $+$0.22\,pp MMLU); SmoothQuant is
+calibration-critical and self-generated data must be avoided.
+We do \emph{not} claim domain calibration universally outperforms
+generic calibration: the data contradicts that for SmoothQuant on
+MMLU.  We situate this work against concurrent method-proposal work
+(\S\ref{sec:related}) including MixCal \citep{mixcal2026} and
+per-task mixed-precision allocation \citep{levi2026pertask}.
 
 % ============================================================
 \section{Related Work}
@@ -175,7 +168,7 @@ quantization method and vary the corpus; all three target base models.
 Our work differs in three axes: (i) the quantization \emph{format} is an
 independent variable, (ii) the target model is a \emph{domain fine-tuned}
 checkpoint, and (iii) we report the first calibration-sensitivity
-results for SmoothQuant (joint weight--activation INT8) and FP8 ---
+results for SmoothQuant (joint weight--activation INT8) and FP8,
 neither covered by prior calibration-data studies.
 
 \paragraph{Concurrent method-proposal work.}
@@ -217,17 +210,10 @@ instruction-format variation across quantized variants.
 \section{Methodology}
 \label{sec:method}
 
-Figure~\ref{fig:pipeline} provides an overview of our experimental design.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{fig1_pipeline.pdf}
-\caption{Experimental pipeline.  Left: fine-tuning stage producing the FP16 domain
-checkpoint.  Centre: the $3 \times 3$ calibration-format matrix; each cell shows
-the resulting MMLU accuracy.  The red-bordered cell (SQ\,INT8 $\times$ C2) is the
-anomalous result analysed in \S\ref{sec:anomaly}.  Right: dual-benchmark evaluation.}
-\label{fig:pipeline}
-\end{figure*}
+An overview of the experimental pipeline (FP16 fine-tuning $\to$
+$3 \times 3$ calibration--format matrix $\to$ dual-benchmark
+evaluation) is provided in Appendix~\ref{app:pipeline},
+Fig.~\ref{fig:pipeline}.
 
 \subsection{Base Model and Domain Fine-Tuning}
 \label{sec:base}
@@ -237,12 +223,10 @@ fine-tuning on 83K cybersecurity instruction examples (rank-16 LoRA
 adapters over $q,k,v,o,\text{gate},\text{up},\text{down}$ projections,
 2 epochs, batch size 8, learning rate $2\times10^{-4}$).  The FP16
 fine-tuned model achieves approximately 44--46\% on \wmdp{} and
-63--65\% on MMLU, establishing our quality ceiling.  All experiments
-run on a single Lambda A10 (24\,GB); the full cybersecurity sweep
-(9 quantizations + 18 evaluations) reproduces from scratch in
-${\sim}9$ GPU-hours, the cross-domain extension in another
-${\sim}10$ hours --- approximately \$25 of cloud compute at current
-rates.  All subsequent quantization is applied to this fine-tuned
+63--65\% on MMLU, establishing our quality ceiling.  All experiments run on a single Lambda A10 (24\,GB); end-to-end
+reproduction of the full 27-configuration table from base checkpoints
+costs approximately \$50 of cloud compute (${\sim}1$ GPU-day) at
+current rates.  All subsequent quantization is applied to this fine-tuned
 checkpoint.
 
 \subsection{Quantization Formats}
@@ -294,7 +278,7 @@ text, constructed to reflect the joint deployment distribution across
 \wmdp{} (cyber) and MMLU (broad academic).  The corpus is prepared via
 \path{prepare_dacs_calib.py} and stored as
 \path{dacs_calib_512.jsonl}.  We use \dacs{} as a convenient label
-for this condition; we do \emph{not} claim it is a novel method---it is
+for this condition; we do \emph{not} claim it is a novel method, it is
 the domain-aligned control condition that defines our C1/C2/C3 contrast.
 
 \subsection{Evaluation Protocol}
@@ -393,7 +377,7 @@ behind a FP16 activation path; SmoothQuant's smoothing vector is a
 \emph{direct} function of calibration activation maxima, propagating
 miscalibration into every INT8 matrix multiply.  The right question
 for practitioners is not ``does calibration data matter?'' but
-``does it matter for \emph{this} format?''---for FP8 no, for
+``does it matter for \emph{this} format?'' For FP8 no, for
 SmoothQuant substantially.
 
 \subsection{The SmoothQuant Self-Calibration Failure}
@@ -441,22 +425,9 @@ SQ\,C2 on MMLU).  This contradicts a naive ``domain data is always
 better'' intuition: WikiText-2's encyclopaedic breadth produces
 per-channel activation maxima that cover MMLU better than a
 narrower cyber+academic corpus, while \dacs{}'s tighter distribution
-matches cyber-flavoured activations more faithfully ---
+matches cyber-flavoured activations more faithfully:
 diversity-weighted hybrid calibration is a natural method-paper
 follow-up that we leave out of scope.
-
-\subsection{Benchmark Interpretation}
-
-\wmdp{}, originally a hazard proxy for unlearning interventions
-\citep{li2024wmdp}, functions here as a domain-knowledge retention
-probe.  FP8 at 44.19\,\% matches the FP16 ceiling; AWQ at
-$\sim$41\,\% and SQ at $\sim$42\,\% lose 3--4\,pp.  The SQ C2
-degradation on \wmdp{} vanishes (0.00\,pp gap between SQ\,C1 and
-SQ\,C2 on the cyber benchmark) but is severe on MMLU ($-$9.08\,pp),
-consistent with the activation-range mechanism proposed above:
-narrow self-generated calibration faithfully covers the cyber-flavoured
-activations \wmdp{} elicits, but underestimates the broader activation
-range MMLU's 57 subjects produce.
 
 % ============================================================
 \subsection{Mechanistic Validation: Activation Range Analysis}
@@ -478,7 +449,7 @@ Figure~\ref{fig:activation} shows the mean range ratio per condition
 and domain.  The pattern is decisive: WikiText-2 (C1)
 \emph{overshoots} inference range across all three domains
 (ratios $1.052$--$1.055$), while self-generated calibration (C2)
-systematically \emph{undershoots} --- most catastrophically on cyber
+systematically \emph{undershoots}, most catastrophically on cyber
 (ratio $0.788$, gap $0.212$, $100\,\%$ of layers below 1.0), less so
 on medical ($0.966$, $61.6\,\%$) and code ($0.971$, $71.9\,\%$).
 Domain calibration (C3) closely matches inference for cyber and
@@ -583,7 +554,7 @@ smaller magnitude is expected because Med42 is a 8B public checkpoint
 fine-tuned with a broader recipe than our narrow QLoRA cybersecurity
 adapter, resulting in less activation-distribution narrowing under
 self-generated decoding.  This confirms that the failure mode is not
-an artefact of our specific fine-tuning setup---it generalises---but
+an artefact of our specific fine-tuning setup; it generalises, but
 that its severity scales with the degree of domain narrowing.
 
 \paragraph{C3 (\dacs{}) vs.\ C1 and C2.}
@@ -599,23 +570,8 @@ than our PubMedQA-based C3 corpus), a nuance that reinforces the
 complexity of calibration-data selection and strengthens the case for
 cross-format sensitivity maps over single-method recommendations.
 
-Figure~\ref{fig:crossdomain} places the two domains side by side on a
-common calibration axis, making the replication of the sensitivity
-hierarchy immediately visible.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{fig3_crossdomain.pdf}
-\caption{Cross-domain replication of calibration sensitivity across three
-domains (left to right: cybersecurity, medical, code).  Each panel plots
-MMLU accuracy for C1/C2/C3 within each quantization format.
-The \textbf{FP8 $<$ AWQ INT4 $<$ SQ INT8} sensitivity hierarchy is preserved
-across all three domains; the C2 dip for SQ INT8 replicates with
-domain-dependent magnitude (9.08\,pp cyber, 2.41\,pp medical, 1.80\,pp code),
-consistent with the activation-range underestimation mechanism scaling with
-domain narrowness.}
-\label{fig:crossdomain}
-\end{figure*}
+A side-by-side three-domain visualisation of MMLU accuracy is
+provided in Appendix~\ref{app:pipeline}, Fig.~\ref{fig:crossdomain}.
 
 \paragraph{Code domain (CodeLlama-7B-Instruct).}
 The 3$\times$3 grid is reproduced on CodeLlama; absolute MMLU is
@@ -663,23 +619,17 @@ tokens being structurally more diverse than domain-narrow natural-language
 text, limiting the extent to which self-generated decoding underestimates
 the full activation range.  The hierarchy FP8 $<$ AWQ $<$ SQ is preserved.
 
-\paragraph{Cross-domain sensitivity summary.}
-Figure~\ref{fig:summary} distils the key result across all 27 configurations.
-The sensitivity of each format to calibration-data choice is a robust,
-domain-invariant property: FP8 registers 0.00\,pp spread in all three domains;
-AWQ INT4 registers 0.30--1.03\,pp; SQ INT8 registers 1.80--9.08\,pp.  The
-variation in SQ magnitude is itself informative: it scales with domain
-narrowness (code $<$ medical $<$ cybersecurity), providing quantitative
-evidence that the activation-range underestimation mechanism is modulated
-by the breadth of the fine-tuning distribution.
+Figure~\ref{fig:summary} summarises the calibration spread per
+(format, domain) across all 27 configurations; SQ INT8 magnitude
+scales with domain narrowness (cybersecurity 9.08 $>$ medical 2.41
+$>$ code 1.80\,pp), reinforcing the activation-range mechanism.
 
-\begin{figure}[t]
+\begin{figure}[h]
 \centering
 \includegraphics[width=0.96\columnwidth]{fig4_sensitivity_summary.pdf}
-\caption{MMLU calibration spread (max$-$min across C1/C2/C3) per format and
-domain.  FP8 is universally calibration-agnostic; SQ INT8 is universally the
-most sensitive.  The SQ spread scales with domain narrowness:
-cybersecurity (9.08\,pp) $>$ medical (2.41\,pp) $>$ code (1.80\,pp).}
+\caption{MMLU calibration spread per format and domain.  FP8 is
+universally calibration-agnostic; SQ INT8 is universally the most
+sensitive.}
 \label{fig:summary}
 \end{figure}
 
@@ -698,7 +648,7 @@ proportionally to the gap.  Self-generated text from a domain
 fine-tuned model is the highest-risk option, because domain
 specialisation narrows the activation distribution by construction;
 generic text such as WikiText-2 is both safer and, counterintuitively,
-better for MMLU retention than domain-specific corpora --- its breadth
+better for MMLU retention than domain-specific corpora: its breadth
 matches the breadth of the evaluation distribution.
 
 \paragraph{Boundary condition for self-calibration.}
@@ -707,8 +657,8 @@ fine-tuned model (narrow activation distribution), (ii) a joint
 weight--activation quantization method (smoothing vector is a
 direct function of that distribution), and (iii) a deployment
 benchmark broader than the fine-tuned domain (inference activations
-exceed the calibrated range).  Removing any one breaks the failure
---- which is why SQ\,C2 on \wmdp{} (cyber-matched) shows 0.00\,pp
+exceed the calibrated range).  Removing any one breaks the failure,
+which is why SQ\,C2 on \wmdp{} (cyber-matched) shows 0.00\,pp
 while MMLU (57 subjects) shows $-$9.08\,pp, and why regression
 magnitude scales with domain breadth (cyber 9.08, medical 2.41,
 code 1.80\,pp).
@@ -727,30 +677,20 @@ The measurement is a single forward pass over 128 samples.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We conducted a systematic cross-format sensitivity study of
-calibration-data choice for post-training quantization of domain
-fine-tuned LLMs.  Across 27 (format $\times$ calibration $\times$
-domain) configurations spanning cybersecurity (Llama-3.1-8B),
-biomedical (Med42-8B), and code (CodeLlama-7B-Instruct), we
-established a clear and universal sensitivity hierarchy
-(FP8 $<$ AWQ $<$ SmoothQuant), identified a SmoothQuant
-self-calibration failure mode that replicates across all three domains
-(magnitudes: 9.08\,pp cyber, 2.41\,pp medical, 1.80\,pp code; all
-$>$3$\sigma$ above the Wilson 95\,\% CI noise floor at $n=14{,}042$),
-and mapped out when domain-aligned calibration helps versus hurts.
-All reported differences are accompanied by Wilson 95\,\% CIs
-(half-width $\pm$0.80\,pp at $n=14{,}042$; $\pm$2.18\,pp at $n=1{,}987$).
-The actionable takeaway is a
-small decision surface: use FP8 if the hardware supports it; for AWQ,
-domain calibration gives a modest consistent gain; for SmoothQuant,
-never use self-generated calibration and treat \emph{any}
-calibration-data choice as a deployment-critical decision that needs
-validation.
-
-Our contribution is \emph{characterization}, not method proposal.
-Concurrent method-proposal work \citep{mixcal2026, levi2026pertask}
-addresses calibration design from the other side; a sensitivity map
-like ours is the diagnostic prior those methods can target.
+Across 27 configurations spanning cybersecurity, biomedical, and code
+fine-tuned LLMs, calibration sensitivity orders strictly as
+FP8 $<$ AWQ INT4 $<$ SmoothQuant INT8 and the order is
+mechanistically grounded in each format's structural calibration
+dependence.  SmoothQuant's self-calibration failure on domain
+fine-tuned models replicates across all three domains
+(9.08 / 2.41 / 1.80\,pp MMLU regression, all $>3\sigma$ above the
+Wilson 95\,\% CI noise floor) with severity scaling inversely with
+domain breadth.  The actionable surface: use FP8 if hardware allows;
+for AWQ, domain calibration gives a modest consistent gain; for
+SmoothQuant, never use self-generated calibration.  Our contribution
+is characterisation, not method proposal; a sensitivity map
+concurrent method-proposal work (\citealp{mixcal2026};
+\citealp{levi2026pertask}) can target.
 
 \paragraph{Limitations.}
 The cybersecurity study uses our own QLoRA fine-tuned checkpoint; the
@@ -790,6 +730,34 @@ specific regression magnitudes vary domain-dependently
 
 \section{Evaluation Implementation Details}
 \label{app:eval}
+
+\subsection{Pipeline and Cross-Domain Visualisations}
+\label{app:pipeline}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.96\columnwidth]{fig1_pipeline.pdf}
+\caption{Experimental pipeline.  Left: fine-tuning stage producing
+the FP16 domain checkpoint.  Centre: the $3 \times 3$
+calibration--format matrix; each cell shows the resulting MMLU
+accuracy.  The red-bordered cell (SQ\,INT8 $\times$ C2) is the
+anomalous result analysed in \S\ref{sec:anomaly}.  Right:
+dual-benchmark evaluation.}
+\label{fig:pipeline}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.96\columnwidth]{fig3_crossdomain.pdf}
+\caption{Cross-domain replication of calibration sensitivity across
+three domains (left to right: cybersecurity, medical, code).  Each
+panel plots MMLU accuracy for C1/C2/C3 within each quantization
+format.  The FP8 $<$ AWQ INT4 $<$ SQ INT8 sensitivity hierarchy is
+preserved across all three domains; the C2 dip for SQ INT8
+replicates with domain-dependent magnitude
+(9.08\,pp cyber, 2.41\,pp medical, 1.80\,pp code).}
+\label{fig:crossdomain}
+\end{figure}
 
 \subsection{MCQ Scoring}
 
@@ -843,7 +811,7 @@ matched-length), and compute the per-channel range ratio
 $r_{j,\text{cond}} = \max(|\mathbf{X}_\text{cond}|)_j /
 \max(|\mathbf{X}_\text{MMLU}|)_j$.  A ratio below 1.0 means the
 calibration text underestimates the activation range SmoothQuant
-will face at inference time --- causing smoothing scales that
+will face at inference time, causing smoothing scales that
 are systematically too small.
 
 \paragraph{Aggregate findings (per condition).}
@@ -861,7 +829,7 @@ are systematically too small.
 \item \textbf{C3 fidelity is domain-dependent:}  For cybersecurity
   (ratio $= 1.008$) and medical (ratio $= 1.011$), the domain
   corpus matches the inference distribution closely.  For \emph{code},
-  however, C3 also undershoots (ratio $= 0.941$), even below C2 ---
+  however, C3 also undershoots (ratio $= 0.941$), even below C2:
   Python function text is syntactically narrow enough that neither
   self-generated nor domain-corpus calibration covers the full MMLU
   activation range.
