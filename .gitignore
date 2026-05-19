@@ -66,3 +66,9 @@ CLAUDE.md
 HANDOFF.md
 quantization explainer/
 DACS_Pre-Submission_Review.md
+# ── macOS resource-fork sidecar files (AppleDouble) ──────────────────────────
+._*
+**/._*
+
+# ── Stale figure (replaced by fig6_per_layer_distribution.pdf) ───────────────
+paper/fig6_kl_vs_regression.pdf
