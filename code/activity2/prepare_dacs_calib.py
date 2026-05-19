@@ -3,7 +3,7 @@ DACS Project — Activity 2C: Prepare DACS Calibration Data (C3)
 ===============================================================
 This is the core contribution of the paper.
 Sample 512 assistant-turn texts from the original SFT training corpus
-(LoraForge Activity 0 data) to use as calibration data for quantization.
+(the fine-tuning stage data) to use as calibration data for quantization.
 
 Why assistant turns only (not user/system prompts)?
   During fine-tuning, the cross-entropy loss was computed on ASSISTANT tokens only.
@@ -16,7 +16,7 @@ Why 512 samples (not 128 like AWQ default)?
   512 is the SmoothQuant default and also works well for AWQ.
   The DACS paper uses 512 for all three quantization formats.
 
-Input:    LoraForge SFT training corpus — either a local JSONL or auto-downloaded
+Input:    fine-tuning SFT training corpus — either a local JSONL or auto-downloaded
           from HuggingFace (Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset)
 Output:   ./outputs/dacs_calib_512.jsonl
 Runtime:  ~1-2 minutes (CPU; add ~2 min first time for HF download)
@@ -30,7 +30,7 @@ import random
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-# Path to the SFT training corpus from LoraForge Activity 0.
+# Path to the SFT training corpus from the fine-tuning stage.
 # If this file does not exist, the script will auto-download from HuggingFace
 # and save it here for future runs.
 SFT_CORPUS_PATH = os.environ.get(
@@ -38,7 +38,7 @@ SFT_CORPUS_PATH = os.environ.get(
     "./outputs/cybersec_sft_train.jsonl",   # auto-saved here on first run
 )
 
-# HuggingFace dataset used in LoraForge Activity 0 (fallback if no local file)
+# HuggingFace dataset used in the fine-tuning stage (fallback if no local file)
 HF_DATASET_PRIMARY  = "Trendyol/Trendyol-Cybersecurity-Instruction-Tuning-Dataset"
 HF_INSTRUCTION_COL  = "user"
 HF_RESPONSE_COL     = "assistant"

@@ -18,7 +18,7 @@ for comparison.
 ## Part 0 — On the local Mac: commit + push the new script and runbook
 
 ```bash
-cd /Users/deepankdixit/Documents/projects/emnlp
+cd ~/emnlp
 git status                       # confirm runbook is untracked
 git add code/activity2/sq_c1_wikitext.py code/activity2/RUN_THIS_sq_c1_wikitext.md
 git commit -m "Add SQ INT8 C1 re-run on WikiText-2 (fixes C1 corpus mismatch)"
@@ -33,10 +33,10 @@ runbook will be the only new file in this commit.
 ## Part 1 — SSH into the Lambda instance
 
 ```bash
-ssh ubuntu@170.9.23.224
+ssh ubuntu@<INSTANCE_IP>
 ```
 
-(Instance: `19MayA10_1119AMIST`, region `us-west-1`. Verify it's `Running`
+(Instance: `<your A10 instance>`, region `us-west-1`. Verify it's `Running`
 in the Lambda console before connecting — if it's been terminated, launch
 a fresh A10 and update the IP.)
 
@@ -226,7 +226,7 @@ git push origin main
 Then on the local Mac:
 
 ```bash
-cd /Users/deepankdixit/Documents/projects/emnlp
+cd ~/emnlp
 git pull origin main
 ```
 
@@ -235,8 +235,8 @@ git pull origin main
 From the local Mac (NOT from inside Lambda SSH):
 
 ```bash
-scp ubuntu@170.9.23.224:~/emnlp/results/activity2_all_results.json \
-    /Users/deepankdixit/Documents/projects/emnlp/results/
+scp ubuntu@<INSTANCE_IP>:~/emnlp/results/activity2_all_results.json \
+    ~/emnlp/results/
 ```
 
 Useful if `git add -f` on the Lambda box feels too risky (e.g. you have
@@ -275,7 +275,7 @@ becomes a softer claim.
 
 ## Quick reference
 
-- Lambda instance: `19MayA10_1119AMIST` at `ubuntu@170.9.23.224` (`us-west-1`)
+- Lambda instance: `<your A10 instance>` at `ubuntu@<INSTANCE_IP>` (`us-west-1`)
 - Repo path on Lambda: typically `~/emnlp` (verify with `ls ~`)
 - venv: `<repo>/venv`
 - New model output: `./outputs/cyber_int8_sq_c1_wikitext/`

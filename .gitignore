@@ -61,9 +61,7 @@ paper/*.log
 /tmp/
 data/cybersec_sft_train.jsonl
 
-# ── Session / agent artifacts (do not push) ──────────────────────────────────
-# These files exist only on the local working copy for context handoff between
-# sessions. They reveal session tooling and should never enter git history.
+# ── Local-only working-copy notes (not part of the repo) ────────────────────
 CLAUDE.md
 HANDOFF.md
 quantization explainer/

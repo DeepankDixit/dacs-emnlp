@@ -1,210 +1,173 @@
-# DACS — Domain-Aware Calibration Selection
+# When Does Calibration Data Matter for Quantizing Fine-Tuned LLMs?
 
-**Private research repository. Do not share.**
-EMNLP 2026 submission — Optum AI Research.
+A Cross-Format Sensitivity Study.
 
-> ⚠️ **Framing A (Sensitivity Study) — April 5, 2026**
-> This is a cross-format calibration sensitivity study, not a method proposal.
-> See `documentation/md/DECISION_RECORD.md` for the full framing.
+This repository accompanies an anonymous submission. It contains the code,
+calibration corpora, and evaluation harness used to produce the 27-configuration
+result table reported in the paper.
 
 ---
 
-## Repository Structure
+## Repository structure
 
 ```
 code/
-├── unified_eval.py           # shared eval harness (activity2 + activity3)
-├── wmdp_eval.py              # format-aware loader (AWQ / SQ / FP8)
-├── activity2/                # Cybersecurity domain (Activity 2)
-│   ├── setup_lambda.sh       # one-shot Lambda env installer
-│   ├── setup_eval_harness.sh # lm-eval + WMDP setup
-│   ├── awq_c1.py  awq_c2.py  awq_c3.py
-│   ├── sq_c1.py   sq_c2.py   sq_c3.py
-│   ├── fp8_c1.py  fp8_c2.py  fp8_c3.py
-│   ├── prepare_dacs_calib.py # build C3 calibration corpus
-│   ├── generate_self_calib.py# build C2 self-generated corpus
-│   ├── merge_adapter.py      # merge LoRA adapter → FP16
-│   └── evaluate_all.py       # batch-eval all 9 models
-└── activity3/                # Medical + Code domains (Activity 3)
-    ├── setup_lambda.sh       # Activity 3 delta installer (runs after activity2/setup_lambda.sh)
-    ├── requirements.txt      # incremental pins
-    ├── common.py             # shared config (HF IDs, output paths)
-    ├── download_models.py    # pull Med42 + CodeLlama from HuggingFace
-    ├── prepare_c1.py         # C1 generic corpus (WikiText-2)
-    ├── build_med_c3.py       # C3 medical corpus (PubMedQA + MedicalMeadow)
-    ├── build_code_c3.py      # C3 code corpus (CodeAlpaca)
-    ├── generate_self_calib.py# C2 self-cal generation (--domain med|code)
-    ├── awq.py                # AWQ quantization (--domain med|code --cond c1|c2|c3)
-    ├── sq.py                 # SmoothQuant quantization
-    ├── fp8.py                # FP8 quantization
-    └── evaluate_all.py       # batch-eval all 18 models
+├── unified_eval.py            # Shared evaluation harness
+├── wmdp_eval.py               # Format-aware loader (AWQ / SQ / FP8)
+├── activity2/                 # Cybersecurity domain
+│   ├── setup_lambda.sh        # Cloud-GPU environment installer
+│   ├── setup_eval_harness.sh  # lm-eval + WMDP setup
+│   ├── awq_c{1,2,3}.py
+│   ├── sq_c{1,2,3}.py         # plus sq_c1_wikitext.py (uniform-C1 re-run)
+│   ├── fp8_c{1,2,3}.py
+│   ├── prepare_dacs_calib.py  # Build C3 calibration corpus
+│   ├── generate_self_calib.py # Build C2 self-generated corpus
+│   ├── merge_adapter.py       # Merge LoRA adapter into FP16 base
+│   ├── evaluate_all.py        # Batch-evaluate all 9 quantized models
+│   └── make_paper_figures.py  # Regenerate fig2 / fig3 / fig4 from JSON
+└── activity3/                 # Medical + code domains
+    ├── setup_lambda.sh
+    ├── requirements.txt
+    ├── common.py              # Domain configuration (HF IDs, paths)
+    ├── download_models.py
+    ├── prepare_c1.py          # C1 generic (WikiText-2) corpus builder
+    ├── build_med_c3.py        # C3 medical corpus
+    ├── build_code_c3.py       # C3 code corpus
+    ├── generate_self_calib.py
+    ├── quant_awq.py / sq.py / fp8.py  # Per-domain quantization
+    └── evaluate_all.py
+code/activity4/                # Mechanism analysis (activation ranges)
+├── activation_analysis.py
+└── make_act4_figures.py
 paper/
-  main.tex
-  references.bib
-documentation/                # gitignored (large docx/pptx/md files)
+├── main.tex
+└── references.bib
+results/                       # Eval outputs (JSON)
+data/                          # Released calibration corpora
 ```
 
 ---
 
-## Activity 2 — Cybersecurity Domain
+## Calibration conditions
 
-### GPU
+| ID | Name        | Description                                              |
+|----|-------------|----------------------------------------------------------|
+| C1 | Generic     | WikiText-2 passages (uniform across all three formats)   |
+| C2 | Self-cal    | Model-generated continuations                            |
+| C3 | DACS        | Domain-aligned calibration corpus                        |
 
-Lambda Cloud A10G (24 GB, $0.75/h). ~9h wall-clock.
+---
 
-### Setup (fresh Lambda instance)
+## Reproduction
+
+### Environment
+
+Tested on a single 24 GB GPU (NVIDIA A10) running Ubuntu 22.04 with Python 3.10,
+PyTorch 2.6, nvidia-modelopt 0.42, autoawq 0.2.9. Wall-clock for the full
+cybersecurity sweep (9 quantizations + 18 evaluations): ~9 hours.
 
 ```bash
-# 1. System packages + venv
-sudo apt update && sudo apt install -y python3-pip python3-venv git
 python3 -m venv venv && source venv/bin/activate
-
-# 2. Clone
-git clone https://github.com/DeepankDixit/dacs-emnlp.git && cd dacs-emnlp
-
-# 3. Install all dependencies (torch, modelopt, autoawq, transformers, lm-eval)
-bash code/activity2/setup_lambda.sh
-
-# 4. Install eval benchmarks
-bash code/activity2/setup_eval_harness.sh
+bash code/activity2/setup_lambda.sh        # installs all pinned deps
+bash code/activity2/setup_eval_harness.sh  # registers lm-eval tasks
 ```
 
-### Environment variables
+Set `HF_TOKEN` for HuggingFace gated-model access (Llama 3.1 base, Med42).
+
+### Cybersecurity domain (Activity 2)
 
 ```bash
-export HF_TOKEN="hf_your_token_here"
-export SFT_CORPUS_PATH="/path/to/cybersec_sft_train.jsonl"
-export ADAPTER_PATH="/path/to/cybersec_analyst_lora/"
-```
-
-### Run order
-
-```bash
-# Merge LoRA adapter → FP16 model (~15 min)
+# 1. Build the fine-tuned FP16 base
 python code/activity2/merge_adapter.py
 
-# C1 — Generic calibration baseline
+# 2. Quantize under C1 / C2 / C3 for each format (9 models total)
 python code/activity2/awq_c1.py
-python code/activity2/sq_c1.py
+python code/activity2/sq_c1_wikitext.py     # SQ INT8 with WikiText-2 C1 corpus
 python code/activity2/fp8_c1.py
-
-# C3 — DACS domain calibration (run before C2 for early signal)
+python code/activity2/generate_self_calib.py
+python code/activity2/awq_c2.py
+python code/activity2/sq_c2.py
+python code/activity2/fp8_c2.py
 python code/activity2/prepare_dacs_calib.py
 python code/activity2/awq_c3.py
 python code/activity2/sq_c3.py
 python code/activity2/fp8_c3.py
 
-# Early hypothesis check: C3 vs C1
-python code/activity2/evaluate_all.py --models c1 c3 --benchmarks wmdp_cyber
-
-# C2 — Self-calibration
-python code/activity2/generate_self_calib.py
-python code/activity2/awq_c2.py
-python code/activity2/sq_c2.py
-python code/activity2/fp8_c2.py
-
-# Full evaluation of all 9 models
+# 3. Evaluate all 9 on WMDP-Cyber + MMLU
 python code/activity2/evaluate_all.py
 ```
 
-### Activity 2 outputs
-
-```
-outputs/
-  cybersec_analyst_merged_fp16/   # FP16 base (~16 GB)
-  cyber_int4_awq_c1/  cyber_int4_awq_c2/  cyber_int4_awq_c3/
-  cyber_int8_sq_c1/   cyber_int8_sq_c2/   cyber_int8_sq_c3/
-  cyber_fp8_c1/       cyber_fp8_c2/       cyber_fp8_c3/
-results/
-  activity2_all_results.json
-```
-
----
-
-## Activity 3 — Medical + Code Domains
-
-### GPU
-
-Same Lambda A10G instance (or fresh one). ~10h wall-clock.
-
-### Additional setup (after Activity 2 setup)
+### Medical + code domains (Activity 3)
 
 ```bash
-bash code/activity3/setup_lambda.sh   # installs human-eval, clones MedQA, verifies HF login
-huggingface-cli login                 # required for gated Med42 checkpoint
-# Accept terms at: https://huggingface.co/m42-health/Llama3-Med42-8B
-```
-
-### Run order
-
-```bash
-# Download public checkpoints (~30 min, bandwidth-bound)
+bash code/activity3/setup_lambda.sh
 python code/activity3/download_models.py --domain all
+python code/activity3/prepare_c1.py
+python code/activity3/build_med_c3.py
+python code/activity3/build_code_c3.py
+python code/activity3/generate_self_calib.py --domain med
+python code/activity3/generate_self_calib.py --domain code
 
-# Build calibration corpora
-python code/activity3/prepare_c1.py           # C1 generic (WikiText-2)
-python code/activity3/build_med_c3.py         # C3 medical
-python code/activity3/build_code_c3.py        # C3 code
-python code/activity3/generate_self_calib.py --domain med   # C2 medical
-python code/activity3/generate_self_calib.py --domain code  # C2 code
-
-# Medical domain: 9 quantized models
-python code/activity3/awq.py --domain med --cond c1
-python code/activity3/awq.py --domain med --cond c2
-python code/activity3/awq.py --domain med --cond c3
-python code/activity3/sq.py  --domain med --cond c1
-python code/activity3/sq.py  --domain med --cond c2
-python code/activity3/sq.py  --domain med --cond c3
-python code/activity3/fp8.py --domain med --cond c1
-python code/activity3/fp8.py --domain med --cond c2
-python code/activity3/fp8.py --domain med --cond c3
-
-# Evaluate medical domain (early hierarchy check)
-python code/activity3/evaluate_all.py --domain med
-
-# Code domain: 9 quantized models (same pattern)
-python code/activity3/awq.py --domain code --cond c1
-# ... (repeat for all 9 code conditions)
-python code/activity3/fp8.py --domain code --cond c3
-
-# Evaluate code domain
-python code/activity3/evaluate_all.py --domain code
-
-# Full 18-model cross-domain sensitivity table
+# Quantize and evaluate per domain
+for dom in med code; do
+  for fmt in quant_awq sq fp8; do
+    for c in c1 c2 c3; do
+      python code/activity3/${fmt}.py --domain $dom --cond $c
+    done
+  done
+done
 python code/activity3/evaluate_all.py
 ```
 
-### Activity 3 outputs
+### Mechanism analysis (Activity 4)
 
+```bash
+python code/activity4/activation_analysis.py
+python code/activity4/make_act4_figures.py
 ```
-outputs/
-  med_fp16/                             # Llama-3-Med42-8B FP16 (~16 GB)
-  med_int4_awq_c1/  med_int4_awq_c2/  med_int4_awq_c3/
-  med_int8_sq_c1/   med_int8_sq_c2/   med_int8_sq_c3/
-  med_fp8_c1/       med_fp8_c2/       med_fp8_c3/
-  code_fp16/                            # CodeLlama-7B-Instruct FP16 (~14 GB)
-  code_int4_awq_c1/ ... code_fp8_c3/
-  med_c3_calib_512.jsonl
-  code_c3_calib_512.jsonl
-  c1_generic_calib_512.jsonl
-results/
-  activity3_all_results.json
-  eval_cache/
-```
+
+Produces per-channel activation range data
+(`results/activity4_activation_results.json`) and per-layer summary statistics
+(`results/activity4_per_layer_stats.json`).
 
 ---
 
-## Calibration Conditions
+## Released artifacts
 
-| ID | Name | Description |
-|----|------|-------------|
-| C1 | Generic | WikiText-2 passages (standard baseline) |
-| C2 | Self-cal | Model-generated continuations (Williams et al. NAACL 2025) |
-| C3 | Domain | Domain-specific corpus (SFT training distribution proxy) |
+- `data/dacs_calib_512.jsonl` — cybersecurity C3 calibration corpus
+- `outputs/c1_generic_calib_512.jsonl`, `cyber_c2_selfgen_512.jsonl`,
+  `med_c2_selfgen_512.jsonl`, `code_c2_selfgen_512.jsonl`, etc. —
+  all generated calibration corpora
+- `results/dacs_activity2_results_final.json` — cybersecurity 9-config results
+- `results/activity3_all_results.json` — medical + code 18-config results
+- `results/activity4_activation_results.json` — per-channel activation analysis
+- `results/activity4_per_layer_stats.json` — per-layer summary stats
 
-## Research Questions (Framing A — Sensitivity Study)
+The 27-configuration result table in the paper (Tables 1, 2, 3) is reproducible
+exactly from `evaluate_all.py` reading these JSONs.
 
-1. Does the format-sensitivity hierarchy (FP8 < AWQ < SQ) reproduce across medical and code domains?
-2. Is the SmoothQuant C2 catastrophic MMLU regression a cross-domain phenomenon?
+---
 
-See `documentation/md/ACTIVITY_03_DESIGN.md` for the decision tree and pre-registered predictions.
+## Calibration conditions, in detail
+
+**C1 (generic).** WikiText-2 train split, length-filtered, first 512 passages.
+Identical sample selection across AWQ, FP8, and SmoothQuant in all three domains.
+
+**C2 (self-generated).** Temperature-0.8 nucleus-sampled continuations from
+the fine-tuned target model, seed-fixed for reproducibility. 512 sequences
+per domain.
+
+**C3 (DACS / domain-aligned).** Per-domain corpus drawn from publicly
+available training distributions:
+- Cybersecurity: cybersecurity Q&A passages
+- Biomedical: PubMedQA + MedicalMeadow
+- Code: CodeSearchNet + OSS-Instruct
+
+512 sequences each, 512 tokens per sequence.
+
+---
+
+## License
+
+Code released under the MIT License; data passages retain their original
+upstream licenses (WikiText-2: CC BY-SA 3.0; PubMedQA: MIT; etc.).

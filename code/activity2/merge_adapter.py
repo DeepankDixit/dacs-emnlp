@@ -1,16 +1,16 @@
 """
 DACS Project — Activity 2, Phase 1: Re-Merge the LoRA Adapter
 ==============================================================
-The merged FP16 model from LoraForge Activity 1 was NOT persisted to disk.
+The merged FP16 model from the fine-tuning stage was NOT persisted to disk.
 This script recreates it. Run this ONCE before any of the 2A/2B/2C scripts.
 
 What this does:
   1. Downloads Llama-3.1-8B-Instruct base model from HuggingFace
-  2. Loads your cybersecurity LoRA adapter (from LoraForge Activity 0 outputs)
+  2. Loads your cybersecurity LoRA adapter (from the fine-tuning stage outputs)
   3. Merges: W_merged = W_base + (alpha / r) * B @ A  for every layer
   4. Saves the merged FP16 model to ./outputs/cybersec_analyst_merged_fp16/
 
-Input:    Base model (HuggingFace) + LoRA adapter checkpoint (from LoraForge)
+Input:    Base model (HuggingFace) + LoRA adapter checkpoint (from fine-tuning)
 Output:   ./outputs/cybersec_analyst_merged_fp16/  (~15-16 GB on disk)
 Runtime:  ~15 minutes on CPU (do NOT merge on GPU — wastes VRAM, no speed gain)
 Cost:     ~$0.19 on A10G at $0.75/h
@@ -27,11 +27,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 # ---------------------------------------------------------------------------
 BASE_MODEL   = "meta-llama/Llama-3.1-8B-Instruct"
 
-# Path to the LoRA adapter saved by LoraForge Activity 0
-# On Lambda Cloud, this is wherever you copied your LoraForge outputs
+# Path to the LoRA adapter saved by the fine-tuning stage
+# On Lambda Cloud, this is wherever you copied your fine-tuning outputs
 ADAPTER_PATH = os.environ.get(
     "ADAPTER_PATH",
-    "../LoraForge/outputs/cybersec_analyst_lora/"
+    "./outputs/cybersec_analyst_lora/"
 )
 
 OUTPUT_PATH  = "./outputs/cybersec_analyst_merged_fp16/"
