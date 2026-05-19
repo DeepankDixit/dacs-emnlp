@@ -10,13 +10,6 @@
 \usepackage{xcolor}
 \usepackage{array}
 \usepackage{tabularx}
-\usepackage{soul}
-
-% Color definitions for tables
-\definecolor{bestgreen}{RGB}{226,239,218}
-\definecolor{anomalyorange}{RGB}{252,228,214}
-\definecolor{headerblue}{RGB}{189,215,238}
-\definecolor{greylight}{RGB}{242,242,242}
 
 % Convenience commands
 \newcommand{\dacs}{\textsc{Dacs}}
@@ -53,16 +46,21 @@ across \emph{three} fine-tuned domains: cybersecurity (Llama~3.1~8B on 83K
 examples), biomedical (Llama-3-Med42-8B), and code (CodeLlama-7B-Instruct),
 yielding 27 configurations evaluated on both in-domain and MMLU benchmarks.
 Three findings emerge.  \emph{First}, calibration sensitivity is sharply
-format-dependent: the C1$\to$C3 spread on MMLU is 0.00\,pp for FP8, 0.70\,pp
-for AWQ INT4, and up to 9.31\,pp for SmoothQuant INT8; recommending a single
-``best'' calibration strategy without conditioning on the quantization format
-is unsafe.  \emph{Second}, self-generated calibration---previously shown to be
-competitive on base models \citep{williams2025selfcalib}---causes a
-catastrophic MMLU regression under SmoothQuant (9.31\,pp on cybersecurity,
-2.41\,pp on biomedical, 1.80\,pp on code; all $>$4$\sigma$ above the
-Wilson 95\,\% CI noise floor), with severity scaling inversely
-with domain breadth.  \emph{Third}, domain-aligned calibration partially
-rescues this failure mode but does not uniformly dominate generic calibration.
+format-dependent: the max calibration spread on MMLU is 0.00\,pp for FP8,
+up to 1.03\,pp for AWQ INT4, and up to 9.08\,pp for SmoothQuant INT8;
+recommending a single ``best'' calibration strategy without conditioning on
+the quantization format is unsafe.  \emph{Second}, self-generated
+calibration---previously shown to be competitive on base models
+\citep{williams2025selfcalib}---causes a substantial MMLU regression under
+SmoothQuant on every domain tested (9.08\,pp on cybersecurity, 2.41\,pp on
+biomedical, 1.80\,pp on code; all $>$3$\sigma$ above the Wilson 95\,\% CI
+noise floor), with severity scaling inversely with domain breadth.  The
+failure is SmoothQuant-specific, however: for AWQ on the biomedical Med42
+checkpoint, self-generated calibration is in fact the \emph{best} MedQA
+condition ($+$3.20\,pp vs.\ generic), underscoring that calibration choice
+must be jointly conditioned on format and model.  \emph{Third}, domain-aligned
+calibration partially rescues this failure mode but does not uniformly
+dominate generic calibration.
 We argue that cross-format sensitivity maps, not single-method proposals, are
 what practitioners deploying quantized domain LLMs actually need.  Our
 27-configuration result table, calibration corpora, and evaluation harness are
@@ -125,7 +123,7 @@ PTQ formats with distinct calibration-dependence profiles:
 drives the per-channel smoothing vector); and \emph{FP8} E4M3 (joint
 weight--activation, but with floating-point dynamic range that is largely
 insensitive to calibration).  For each format we vary three calibration
-conditions: \emph{C1} generic (The Pile subset, industry default);
+conditions: \emph{C1} generic (WikiText-2, industry default);
 \emph{C2} self-generated (text sampled from the fine-tuned model itself,
 $T=0.8$); and \emph{C3} domain-aligned, which we refer to as \dacs{}
 (\textbf{D}omain-\textbf{A}ware \textbf{C}alibration \textbf{S}election)
@@ -141,7 +139,7 @@ evaluated on \wmdp{} and MMLU using a shared logit-based MCQ scorer.
     reproduced exactly from our harness).
   \item Identification and mechanistic explanation of a \emph{SmoothQuant
     self-calibration failure mode} on fine-tuned models: C2 causes a
-    9.31\,pp MMLU regression, which we attribute to per-channel activation
+    9.08\,pp MMLU regression, which we attribute to per-channel activation
     maxima underestimation under narrow autoregressive decoding.  This is
     a concrete deployment warning that qualifies
     \citet{williams2025selfcalib}'s ``self-calibration is safe'' result
@@ -320,8 +318,13 @@ All three conditions use exactly 512 sequences of 512 tokens, held
 constant to isolate data-distribution effects from data-size effects.
 
 \paragraph{C1: Generic (baseline).}
-A diverse subset of The Pile \citep{gao2020pile}, the standard PTQ
-calibration corpus.  Our C1 is the industry default and serves as control.
+WikiText-2 \citep{merity2017wikitext}: 512 cleaned-Wikipedia passages,
+identical across all three quantization formats and all three domains.
+WikiText-2 is the reference calibration corpus used in the original AWQ
+release \citep{lin2023awq}; we apply it uniformly to AWQ, SmoothQuant,
+and FP8 so that any difference in downstream accuracy is attributable
+to the format--calibration interaction rather than to a calibration-corpus
+shift across formats.  C1 is our generic-prose control.
 
 \paragraph{C2: Self-generated.}
 Text sampled from the \emph{fine-tuned} model using temperature $T=0.8$
@@ -359,7 +362,7 @@ All accuracy differences reported in this paper include Wilson 95\%
 confidence intervals (CIs), computed as $\hat{p} \pm z\sqrt{\hat{p}(1-\hat{p})/n + z^2/(4n^2)}\,/\,(1 + z^2/n)$
 with $z = 1.96$.  At $n = 14{,}042$ (MMLU) the half-width is $\pm$0.80\,pp;
 at $n = 1{,}987$ (WMDP) it is $\pm$2.18\,pp.  The SQ\,C2 MMLU regression of
-9.31\,pp is 22.2$\sigma$ above the noise floor, well beyond any
+9.08\,pp is 22.3$\sigma$ above the noise floor, well beyond any
 plausible sampling artefact.
 
 % ============================================================
@@ -391,9 +394,9 @@ Table~\ref{tab:main} presents accuracy for all nine quantized variants.
   & C3 \dacs{}  & 41.77 & $+$0.55 & 59.64 & $+$0.22 \\
 \midrule
 \multirow{3}{*}{SQ INT8}
-  & C1 Generic  & 42.43 & --    & 59.23 & -- \\
-  & C2 Self-gen & 40.61 & $-$1.82 & 49.92$^\dag$ & $-$9.31 \\
-  & C3 \dacs{}  & 42.17 & $-$0.26 & 56.22 & $-$3.01 \\
+  & C1 Generic  & 40.61 & --    & 59.00 & -- \\
+  & C2 Self-gen & 40.61 & $~~$0.00 & 49.92$^\dag$ & $-$9.08 \\
+  & C3 \dacs{}  & 42.17 & $+$1.56 & 56.22 & $-$2.78 \\
 \midrule
 \multirow{3}{*}{FP8}
   & C1 Generic  & \textbf{44.19} & --    & \textbf{62.18} & -- \\
@@ -409,7 +412,7 @@ near-baseline accuracy).  (ii) AWQ INT4 is mildly calibration-sensitive:
 C3 is the best AWQ condition on both benchmarks, but the maximum spread
 is $\le 0.75$\,pp---comfortably within one Wilson CI half-width at $n=14{,}042$.
 (iii) SmoothQuant INT8 is calibration-critical: the MMLU spread across
-C1/C2/C3 is 9.31\,pp (22.2$\sigma$; Wilson 95\% CI: $\pm$0.80\,pp), dominated
+C1/C2/C3 is 9.08\,pp (22.3$\sigma$; Wilson 95\% CI: $\pm$0.80\,pp), dominated
 by the C2 regression.
 Figure~\ref{fig:sensitivity} visualises this hierarchy (error bars show
 Wilson 95\% CIs); the SQ\,INT8\,C2 bar is the most visually salient feature,
@@ -420,7 +423,7 @@ underscoring the severity of the self-calibration failure.
 \includegraphics[width=0.72\textwidth]{fig2_sensitivity.pdf}
 \caption{MMLU accuracy for all nine (format $\times$ calibration) configurations.
 Bars are grouped by quantization format.  The dashed line marks the FP16
-baseline ($\approx$63\,\%).  The annotated drop ($-$9.31\,pp) for SQ\,INT8\,C2
+baseline ($\approx$63\,\%).  The annotated drop ($-$9.08\,pp) for SQ\,INT8\,C2
 is the self-calibration failure analysed in \S\ref{sec:anomaly}.  Calibration
 spread (max$-$min within a format) is shown below each group.}
 \label{fig:sensitivity}
@@ -451,11 +454,14 @@ For FP8, it does not.  For SmoothQuant, it does---substantially.
 \subsection{The SmoothQuant Self-Calibration Failure}
 \label{sec:anomaly}
 
-The SQ\,INT8\,C2 MMLU score of 49.92\,\% represents a 9.31\,pp regression
-relative to C1 and a 3.31\,pp regression relative to the WMDP-Cyber
-score of the same model (42.61\,\%).  The failure is specific to SQ and
-specific to MMLU; SQ\,C2's \wmdp{} score (40.61\,\%) is only 1.82\,pp
-below C1.
+The SQ\,INT8\,C2 MMLU score of 49.92\,\% represents a 9.08\,pp regression
+relative to C1 (59.00\,\%).  Strikingly, on the in-domain \wmdp{}
+benchmark the same SQ\,C2 model matches SQ\,C1 exactly
+(both 40.61\,\%; $\Delta = 0.00$\,pp): calibration choice on a
+cyber-flavoured evaluation is invisible despite being decisive on
+MMLU.  This is exactly what the activation-range mechanism predicts
+when the calibration distribution matches the evaluation
+distribution (\S\ref{sec:mechanism}).
 
 Our hypothesized mechanism is activation-range underestimation.
 Autoregressive decoding from a temperature-sampled fine-tuned model
@@ -496,20 +502,23 @@ MMLU despite recovering $+$6.30\,pp relative to C2.
 \textbf{Format} & \textbf{\wmdp{}} & \textbf{MMLU} \\
 \midrule
 AWQ INT4 & $+$0.55\,pp & $+$0.22\,pp \\
-SQ INT8  & $-$0.26\,pp & $-$3.01\,pp \\
+SQ INT8  & $+$1.56\,pp & $-$2.78\,pp \\
 FP8      & $~~$0.00\,pp & $~~$0.00\,pp \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 This contradicts a naive ``domain data is always better'' intuition.
-For SmoothQuant, our best explanation is that The Pile's breadth
-produces per-channel activation maxima that cover the MMLU distribution
-better than a narrower cyber+academic corpus does; \dacs{}'s narrower
-distribution shifts the smoothing vector in a way that trades MMLU
-coverage for cyber coverage.  A useful design direction for a
+For SmoothQuant, our best explanation is that WikiText-2's breadth of
+encyclopaedic topics produces per-channel activation maxima that cover
+the MMLU distribution better than a narrower cyber+academic corpus
+does; \dacs{}'s narrower distribution shifts the smoothing vector in a
+way that trades MMLU coverage for cyber coverage --- which is precisely
+why \dacs{} delivers a $+$1.56\,pp gain on \wmdp{} (Table~\ref{tab:dacs})
+while underperforming on MMLU.  A useful design direction for a
 \emph{method} paper---out of scope here---would be diversity-weighted
-domain calibration that combines Pile breadth with domain relevance.
+domain calibration that combines generic-corpus breadth with domain
+relevance.
 
 \subsection{Benchmark Interpretation}
 
@@ -517,10 +526,12 @@ domain calibration that combines Pile breadth with domain relevance.
 \citep{li2024wmdp}, functions here as a domain-knowledge retention
 probe.  FP8 at 44.19\,\% matches the FP16 ceiling; AWQ at
 $\sim$41\,\% and SQ at $\sim$42\,\% lose 3--4\,pp.  The SQ C2
-degradation on \wmdp{} is moderate ($-$1.82\,pp) but catastrophic on
-MMLU ($-$9.31\,pp), consistent with the activation-range mechanism
-proposed above: narrow calibration hurts broad evaluation more than
-narrow-match evaluation.
+degradation on \wmdp{} vanishes (0.00\,pp gap between SQ\,C1 and
+SQ\,C2 on the cyber benchmark) but is severe on MMLU ($-$9.08\,pp),
+consistent with the activation-range mechanism proposed above:
+narrow self-generated calibration faithfully covers the cyber-flavoured
+activations \wmdp{} elicits, but underestimates the broader activation
+range MMLU's 57 subjects produce.
 
 % ============================================================
 \subsection{Mechanistic Validation: Activation Range Analysis}
@@ -552,10 +563,14 @@ results confirm and extend the hypothesis from
   indicating that generic prose \emph{overestimates} the activation
   range relative to MMLU inference.
 
-\item \textbf{C2 (self-generated) undershoots:}  Self-generated text
-  yields ratios of $0.966$--$0.971$ across all domains
-  ($61$--$72$\,\% of layers below 1.0), confirming the
-  activation-range underestimation mechanism.
+\item \textbf{C2 (self-generated) undershoots in all three domains,
+  with magnitudes that scale with the narrowness of the fine-tuning
+  distribution:}  cyber C2 mean ratio $= 0.788$ ($100\,\%$ of layers
+  below 1.0), medical C2 $= 0.966$ ($61.6\,\%$), code C2 $= 0.971$
+  ($71.9\,\%$).  The cyber C2 ratio is the most extreme
+  calibration-vs-inference mismatch we observe, consistent with cyber
+  being the narrowest fine-tuned domain in our study and foreshadowing
+  the largest SQ\,C2 MMLU regression ($-$9.08\,pp; \S\ref{sec:anomaly}).
 
 \item \textbf{C3 fidelity is domain-dependent:}  For cybersecurity
   (ratio $= 1.008$) and medical (ratio $= 1.011$), the domain
@@ -569,14 +584,23 @@ results confirm and extend the hypothesis from
   leave the same channels underscaled.
 \end{itemize}
 
-Figure~\ref{fig:gap_vs_regression} plots the C2 activation gap
-($1 - r_{\text{C2}}$) against the SQ\,C2 MMLU regression across all
-three domains.  The two quantities are strongly correlated (Pearson
-$r = 0.999$), providing direct quantitative evidence that
-per-channel activation-range underestimation is the proximate cause
-of the SQ\,C2 accuracy regression, and that its magnitude scales
-with how far the calibration distribution is from the inference
-distribution.
+Figure~\ref{fig:gap_per_layer} resolves the aggregate observation to
+the per-layer level.  For each domain we have $n = 224$
+SmoothQuant-targeted linear layers (32 transformer layers $\times$ 7
+projection types: q/k/v/o $+$ gate/up/down), each contributing one
+per-layer C2 underestimation gap value.  The distributions are
+cleanly separated: the cyber median gap is 0.153
+(IQR\,$[0.131, 0.268]$), more than $10\times$ the medical median
+(0.015; IQR\,$[-0.006, 0.035]$) and $20\times$ the code median
+(0.007; IQR\,$[-0.001, 0.056]$).  The rank order of per-layer gap
+distributions exactly tracks the rank order of SQ\,C2 MMLU
+regressions (9.08 / 2.41 / 1.80\,pp), and cyber's lower quartile
+alone exceeds the medical and code upper quartiles.  This per-layer
+evidence — across hundreds of independent linear modules per domain
+— is stronger than an aggregated per-domain correlation
+(which by construction has only $n = 3$): the failure is a
+consistent property of the calibration mismatch across the
+architecture, not an artifact of a few outlier layers.
 \end{sloppypar}
 
 \begin{figure}[t]
@@ -594,18 +618,22 @@ is too syntactically narrow to cover MMLU range).}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.96\columnwidth]{fig6_kl_vs_regression.pdf}
-\caption{C2 activation underestimation gap ($1 - $ mean range ratio)
-vs.\ SQ\,C2 MMLU regression across the three domains.  The strong
-correlation (Pearson $r = 0.999$) confirms that
-activation-range underestimation is the proximate mechanism driving
-the SQ\,C2 accuracy failure.}
-\label{fig:gap_vs_regression}
+\includegraphics[width=0.96\columnwidth]{fig6_per_layer_distribution.pdf}
+\caption{Per-layer C2 underestimation gap ($1 - $ C2 mean range
+ratio) by domain, computed across all 224 SmoothQuant-targeted
+linear layers per domain (32 transformer layers $\times$ 7
+projection types).  The aggregate SQ\,C2 MMLU regression for each
+domain is annotated above each box.  Cyber's lower quartile
+(0.131) alone exceeds the medical and code upper quartiles
+(0.035, 0.056), demonstrating that the underestimation is a
+consistent architectural property of the calibration mismatch
+rather than an aggregate driven by a few outlier layers.}
+\label{fig:gap_per_layer}
 \end{figure}
 
 % ============================================================
-\section{Cross-Domain Replication: Medical Domain}
-\label{sec:medical}
+\section{Cross-Domain Replication}
+\label{sec:crossdomain}
 
 To assess whether the sensitivity hierarchy generalises beyond
 cybersecurity, we replicate the 3$\times$3 grid on a \emph{public}
@@ -618,7 +646,7 @@ constructed to match the Activity~3 protocol: C1 uses WikiText-2
 (generic); C2 uses self-generated continuations from Med42 itself
 ($T{=}0.8$, 512 sequences $\times$ 512 tokens); C3 uses a
 PubMedQA + MedicalMeadow domain corpus.  All nine quantized models
-are produced on the same Lambda A10G hardware under identical
+are produced on the same Lambda A10 hardware under identical
 conditions.
 
 \begin{table*}[t]
@@ -670,7 +698,7 @@ The order FP8 $<$ AWQ $<$ SQ is preserved.
 
 \paragraph{SQ C2 self-calibration regression replicates, at a
 smaller magnitude.}
-The SQ\,C2 MMLU regression is $-$2.41\,pp on medical vs.\ $-$9.31\,pp
+The SQ\,C2 MMLU regression is $-$2.41\,pp on medical vs.\ $-$9.08\,pp
 on cybersecurity.  Both are directionally consistent with the
 activation-range-underestimation mechanism (\S\ref{sec:anomaly}): the
 smaller magnitude is expected because Med42 is a 8B public checkpoint
@@ -705,7 +733,7 @@ domains (left to right: cybersecurity, medical, code).  Each panel plots
 MMLU accuracy for C1/C2/C3 within each quantization format.
 The \textbf{FP8 $<$ AWQ INT4 $<$ SQ INT8} sensitivity hierarchy is preserved
 across all three domains; the C2 dip for SQ INT8 replicates with
-domain-dependent magnitude (9.31\,pp cyber, 2.41\,pp medical, 1.80\,pp code),
+domain-dependent magnitude (9.08\,pp cyber, 2.41\,pp medical, 1.80\,pp code),
 consistent with the activation-range underestimation mechanism scaling with
 domain narrowness.}
 \label{fig:crossdomain}
@@ -758,7 +786,7 @@ sensitivity: C3 domain calibration yields $+$1.03\,pp over C1, slightly
 larger than in the cybersecurity (0.30\,pp) and medical (0.70\,pp) domains.
 SQ INT8 again shows the largest spread (1.80\,pp), driven by the C2
 regression ($-$1.80\,pp).  The SQ C2 magnitude is smaller than in
-cybersecurity ($-$9.31\,pp) and medical ($-$2.41\,pp), consistent with code
+cybersecurity ($-$9.08\,pp) and medical ($-$2.41\,pp), consistent with code
 tokens being structurally more diverse than domain-narrow natural-language
 text, limiting the extent to which self-generated decoding underestimates
 the full activation range.  The hierarchy FP8 $<$ AWQ $<$ SQ is preserved.
@@ -767,7 +795,7 @@ the full activation range.  The hierarchy FP8 $<$ AWQ $<$ SQ is preserved.
 Figure~\ref{fig:summary} distils the key result across all 27 configurations.
 The sensitivity of each format to calibration-data choice is a robust,
 domain-invariant property: FP8 registers 0.00\,pp spread in all three domains;
-AWQ INT4 registers 0.30--1.03\,pp; SQ INT8 registers 1.80--9.31\,pp.  The
+AWQ INT4 registers 0.30--1.03\,pp; SQ INT8 registers 1.80--9.08\,pp.  The
 variation in SQ magnitude is itself informative: it scales with domain
 narrowness (code $<$ medical $<$ cybersecurity), providing quantitative
 evidence that the activation-range underestimation mechanism is modulated
@@ -779,7 +807,7 @@ by the breadth of the fine-tuning distribution.
 \caption{MMLU calibration spread (max$-$min across C1/C2/C3) per format and
 domain.  FP8 is universally calibration-agnostic; SQ INT8 is universally the
 most sensitive.  The SQ spread scales with domain narrowness:
-cybersecurity (9.31\,pp) $>$ medical (2.41\,pp) $>$ code (1.80\,pp).}
+cybersecurity (9.08\,pp) $>$ medical (2.41\,pp) $>$ code (1.80\,pp).}
 \label{fig:summary}
 \end{figure}
 
@@ -813,21 +841,25 @@ smoothing vector a direct function of that narrow distribution), and
 (ensuring inference activations regularly exceed the calibrated range).
 Removing any one breaks the failure.  This explains why SQ\,C2 on
 \wmdp{}---a cybersecurity evaluation matching the fine-tuned domain---shows
-only $-$1.82\,pp, while MMLU (57 subjects) shows $-$9.31\,pp.  It also
+0.00\,pp (SQ\,C2 \wmdp{} matches SQ\,C1 \wmdp{} exactly), while MMLU
+(57 subjects) shows $-$9.08\,pp.  It also
 explains why the regression magnitude scales with domain breadth across the
-three domains: cybersecurity is the narrowest domain (9.31\,pp), code the
+three domains: cybersecurity is the narrowest domain (9.08\,pp), code the
 broadest (1.80\,pp), with biomedical between (2.41\,pp).
 
 \paragraph{Activation range as a pre-quantization diagnostic.}
-The Pearson $r = 0.999$ between per-channel activation underestimation gap
-and MMLU regression suggests a lightweight pre-quantization screening step:
-measure the mean range ratio of a candidate calibration corpus against a
-small general-domain reference set, before committing to full SmoothQuant
-conversion.  If the ratio falls below $\sim$0.95, the corpus should be
-augmented with generic text.  The per-channel measurement requires only a
-forward pass over 128 samples and is negligible in cost relative to SQ
-quantization itself.  We leave formal calibration of this threshold across
-model families as future work.
+The cleanly-separated per-layer C2 underestimation gap distributions
+across our three domains (\S\ref{sec:mechanism},
+Fig.~\ref{fig:gap_per_layer}) suggest a lightweight pre-quantization
+screening step: measure the per-layer activation range ratio of a
+candidate calibration corpus against a small general-domain reference
+set, before committing to full SmoothQuant conversion.  As an empirical
+threshold from our data, if the median per-layer ratio falls below
+$\sim$0.95 (equivalently, median gap $> 0.05$), the corpus should be
+augmented with generic text.  The per-channel measurement requires only
+a forward pass over 128 samples and is negligible in cost relative to
+SQ quantization itself.  We leave formal calibration of this threshold
+across model families as future work.
 
 % ============================================================
 \section{Conclusion}
@@ -841,8 +873,8 @@ biomedical (Med42-8B), and code (CodeLlama-7B-Instruct), we
 established a clear and universal sensitivity hierarchy
 (FP8 $<$ AWQ $<$ SmoothQuant), identified a SmoothQuant
 self-calibration failure mode that replicates across all three domains
-(magnitudes: 9.31\,pp cyber, 2.41\,pp medical, 1.80\,pp code; all
-$>$4$\sigma$ above the Wilson 95\,\% CI noise floor at $n=14{,}042$),
+(magnitudes: 9.08\,pp cyber, 2.41\,pp medical, 1.80\,pp code; all
+$>$3$\sigma$ above the Wilson 95\,\% CI noise floor at $n=14{,}042$),
 and mapped out when domain-aligned calibration helps versus hurts.
 All reported differences are accompanied by Wilson 95\,\% CIs
 (half-width $\pm$0.80\,pp at $n=14{,}042$; $\pm$2.18\,pp at $n=1{,}987$).
@@ -860,19 +892,35 @@ like ours is the diagnostic prior those methods can target.
 
 \paragraph{Limitations.}
 The cybersecurity study uses our own QLoRA fine-tuned checkpoint; the
-medical extension uses a public checkpoint (Med42-8B), which is
-methodologically broader but introduces a confound between
-fine-tuning recipe and domain.  The code domain (CodeLlama-7B-Instruct) results are complete and
-reported in \S\ref{sec:medical}.  The 512-token sequence-length cap may underrepresent
-long-context calibration patterns.  The SQ\,C2 activation-range
-mechanism is confirmed via direct per-channel measurement
-(Pearson $r = 0.999$ between underestimation gap and regression
-magnitude; \S\ref{sec:mechanism}), and all accuracy comparisons
-are accompanied by Wilson 95\,\% CIs.  We believe the format-sensitivity
-\emph{order} (FP8 $<$ AWQ $<$ SQ) will generalise because it is
-mechanistically grounded; the results across two domains already
-support this, but the specific regression magnitudes vary
-domain-dependently (9.31\,pp on cybersecurity, 2.41\,pp on medical).
+medical and code extensions use public checkpoints (Med42-8B,
+CodeLlama-7B-Instruct), introducing two confounds.  First, fine-tuning
+recipe and domain are entangled: Med42's broader instruction tuning
+differs from our narrow QLoRA cybersecurity adapter, and either
+factor could plausibly contribute to the smaller SQ\,C2 regression we
+observe on medical (2.41\,pp vs.\ 9.08\,pp on cybersecurity).  Second,
+CodeLlama-7B-Instruct is a 7B model rather than 8B, so the apparent
+scaling of SQ\,C2 regression magnitude with domain narrowness
+(9.08 $>$ 2.41 $>$ 1.80\,pp) is not fully separable from model size.
+In-domain knowledge retention for the code domain is not measured in
+this study: HumanEval is a generation benchmark and is incompatible
+with our logit-based MCQ scorer, so we report MMLU only for code, and
+treat cross-format sensitivity (rather than absolute capability) as the
+quantity of interest there.  The 512-token sequence-length cap may
+underrepresent long-context calibration patterns.  MedQA results
+($n=500$) carry a Wilson 95\,\% half-width of $\pm$4.34\,pp, so MedQA
+deltas below that threshold should be read as descriptive rather than
+inferential.  The SQ\,C2 activation-range mechanism is confirmed via
+direct per-layer measurement: the cyber per-layer underestimation gap
+distribution (median 0.153, $n = 224$ SmoothQuant-targeted layers) is
+cleanly non-overlapping with the medical (median 0.015) and code
+(median 0.007) distributions; the rank order of these distributions
+matches the rank order of the corresponding SQ\,C2 MMLU regressions
+(\S\ref{sec:mechanism}), and all accuracy comparisons in the main
+tables are accompanied by Wilson 95\,\% CIs.  We believe the format-sensitivity \emph{order}
+(FP8 $<$ AWQ $<$ SQ) will generalise because it is mechanistically
+grounded; the results across three domains support this, but the
+specific regression magnitudes vary domain-dependently
+(9.08\,pp cyber, 2.41\,pp medical, 1.80\,pp code).
 
 % ============================================================
 % Appendix
