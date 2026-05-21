@@ -10,12 +10,14 @@ table reported in the paper.
 The work characterises how the choice of post-training quantization (PTQ)
 calibration corpus interacts with the choice of quantization format on
 domain fine-tuned LLMs. We hold calibration corpora identical across
-formats, vary one factor at a time, evaluate on full benchmark suites
-(MMLU 14,042 questions; WMDP-Cyber 1,987; MedQA 500), report Wilson 95%
-confidence intervals on every comparison, and validate the proposed
-mechanism by instrumenting 224 SmoothQuant-targeted linear layers per
-domain (n = 672 module-level measurements) with forward-hook activation
-range analysis.
+formats, vary one factor at a time, evaluate every configuration on MMLU
+(14,042 questions, all 57 subjects), and add per-domain benchmarks
+where applicable: WMDP-Cyber (1,987 questions) for cybersecurity and
+MedQA (500) for biomedical. All comparisons are accompanied by Wilson
+95% confidence intervals, and the proposed activation-range mechanism
+is validated by instrumenting all 224 SmoothQuant-targeted linear
+layers per domain (n = 672 module-level measurements) with forward-hook
+activation maxima recording.
 
 ---
 
