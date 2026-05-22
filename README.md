@@ -30,8 +30,8 @@ activation maxima recording.
 | Fine-tuned domain | Cybersecurity (Llama-3.1-8B + QLoRA), Biomedical (Med42-8B), Code (CodeLlama-7B) | 3 |
 | **Total configurations** | | **27** |
 
-Each configuration is evaluated end-to-end (no shortcuts): MMLU all 14,042
-questions and the in-domain benchmark in full (WMDP-Cyber 1,987 questions,
+Each configuration is evaluated on MMLU (all 14,042 questions) and the
+applicable in-domain benchmark in full (WMDP-Cyber 1,987 questions,
 MedQA 500). All evaluations use logit-based MCQ scoring (robust to
 instruction-format variation across quantized variants).
 
