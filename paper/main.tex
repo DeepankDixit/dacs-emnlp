@@ -724,6 +724,23 @@ grounded; the results across three domains support this, but the
 specific regression magnitudes vary domain-dependently
 (9.08\,pp cyber, 2.41\,pp medical, 1.80\,pp code).
 
+\paragraph{Ethical Considerations.}
+This work evaluates post-training quantization of publicly available
+language models on publicly released benchmarks; no human-subjects
+research was conducted and no new sensitive data was collected.
+\wmdp{} \citep{li2024wmdp} is a hazard-proxy benchmark originally
+designed for unlearning evaluation; we repurpose it here as a
+multiple-choice domain-knowledge retention probe with no unlearning
+intervention applied, consistent with the benchmark's release license.
+Quantization broadly improves the accessibility of LLM inference by
+reducing memory and compute requirements; the calibration-sensitivity
+characterization we provide is intended to help practitioners deploy
+quantized domain models reliably.  Generative AI assistance was used
+for writing assistance (paper editing, figure-script drafting) and
+coding (debugging, anonymisation sweeps) throughout the project; all
+research design, experimental methodology, analyses, and claims are
+the authors' own.
+
 % ============================================================
 % Appendix
 \appendix
