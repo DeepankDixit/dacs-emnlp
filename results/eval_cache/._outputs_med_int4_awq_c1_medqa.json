@@ -1,6 +1,0 @@
-{
-  "model_path": "./outputs/med_int4_awq_c1/",
-  "benchmark": "medqa",
-  "accuracy": 58.8,
-  "limit": null
-}

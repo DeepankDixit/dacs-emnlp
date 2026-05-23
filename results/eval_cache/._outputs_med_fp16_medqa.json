@@ -1,6 +1,0 @@
-{
-  "model_path": "./outputs/med_fp16/",
-  "benchmark": "medqa",
-  "accuracy": 63.2,
-  "limit": null
-}

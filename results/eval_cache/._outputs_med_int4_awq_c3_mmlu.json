@@ -1,6 +1,0 @@
-{
-  "model_path": "./outputs/med_int4_awq_c3/",
-  "benchmark": "mmlu",
-  "accuracy": 58.8663,
-  "limit": null
-}
