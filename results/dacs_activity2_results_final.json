@@ -1,0 +1,75 @@
+{
+  "int4_awq_c1": {
+    "format": "AWQ INT4",
+    "calibration": "C1 WikiText-2",
+    "mmlu": 59.421734795613155,
+    "wmdp_cyber": 41.21791645697031
+  },
+  "int4_awq_c2": {
+    "format": "AWQ INT4",
+    "calibration": "C2 Self-gen",
+    "mmlu": 59.720837487537395,
+    "wmdp_cyber": 41.016607951685955
+  },
+  "int4_awq_c3": {
+    "format": "AWQ INT4",
+    "calibration": "C3 DACS",
+    "mmlu": 59.64250106822389,
+    "wmdp_cyber": 41.771514846502264
+  },
+  "int8_sq_c1": {
+    "format": "SQ INT8",
+    "calibration": "C1 WikiText-2",
+    "mmlu": 59.0016,
+    "wmdp_cyber": 40.61
+  },
+  "int8_sq_c2": {
+    "format": "SQ INT8",
+    "calibration": "C2 Self-gen",
+    "mmlu": 49.92,
+    "wmdp_cyber": 40.61
+  },
+  "int8_sq_c3": {
+    "format": "SQ INT8",
+    "calibration": "C3 DACS",
+    "mmlu": 56.22,
+    "wmdp_cyber": 42.17
+  },
+  "fp8_c1": {
+    "format": "FP8",
+    "calibration": "C1 WikiText-2",
+    "mmlu": 62.18,
+    "wmdp_cyber": 44.19
+  },
+  "fp8_c2": {
+    "format": "FP8",
+    "calibration": "C2 Self-gen",
+    "mmlu": 62.1849,
+    "wmdp_cyber": 42.72773024660292
+  },
+  "fp8_c3": {
+    "format": "FP8",
+    "calibration": "C3 DACS",
+    "mmlu": 62.1849,
+    "wmdp_cyber": 44.18721690991445
+  },
+  "_metadata": {
+    "timestamp": "2026-04-05T10:22:03.466966",
+    "limit": null,
+    "models_evaluated": [
+      "int4_awq_c1",
+      "int4_awq_c2",
+      "int4_awq_c3",
+      "int8_sq_c1",
+      "int8_sq_c2",
+      "int8_sq_c3",
+      "fp8_c1",
+      "fp8_c2",
+      "fp8_c3"
+    ],
+    "benchmarks": [
+      "wmdp_cyber",
+      "mmlu"
+    ]
+  }
+}

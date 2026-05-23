@@ -5,8 +5,13 @@
 # Ignore: large model outputs, results, images, secrets
 
 # ── Large model outputs (never commit — tens of GB) ──────────────────────────
-outputs/
-results/
+# Default-ignore everything inside outputs/ and results/, but allow the small
+# calibration corpora and result JSONs to be released alongside the code.
+# (Note: using `outputs/*` not `outputs/` so the `!` negations are evaluated.)
+outputs/*
+!outputs/*.jsonl
+results/*
+!results/*.json
 *.bin
 *.safetensors
 *.pt
