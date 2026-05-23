@@ -65,7 +65,7 @@ COND_COLORS = {
 COND_LABELS = {
     "c1": "C1 Generic",
     "c2": "C2 Self-gen",
-    "c3": "C3 Domain",
+    "c3": "C3 DACS",
 }
 
 DOMAIN_COLORS = {

@@ -64,13 +64,12 @@ WILSON_MMLU = 0.80   # n=14,042
 
 # FP16 baselines per domain (MMLU)
 FP16_BASELINE_MMLU = {
-    "cyber": 63.5,    # midpoint of 63-65 quoted range
+    "cyber": 63.0,    # low end of the 63-65 range (rounds cleanly to 63 in
+                      # the caption-and-label match; FP8 C1 MMLU at 62.18 is
+                      # a near-zero quantization gap from this baseline)
     "med":   60.70,
     "code":  38.38,
 }
-
-# Cyber baseline FP16: paper quotes ~63-65 %; use 63.5 as the dashed line
-# (this matches the FP8 C1 MMLU at 62.18 being a near-zero quantization gap).
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +227,7 @@ axes[0].set_ylabel("MMLU accuracy (%)", fontsize=9)
 legend_handles = [
     mpatches.Patch(color=CALIB_COLORS["c1"], label="C1 Generic (WikiText-2)"),
     mpatches.Patch(color=CALIB_COLORS["c2"], label="C2 Self-generated"),
-    mpatches.Patch(color=CALIB_COLORS["c3"], label="C3 Domain (DACS)"),
+    mpatches.Patch(color=CALIB_COLORS["c3"], label="C3 DACS"),
     plt.Line2D([0], [0], color="black", linestyle="--", lw=0.9, alpha=0.55,
                label="FP16 baseline"),
 ]

@@ -150,8 +150,8 @@ warning that qualifies \citet{williams2025selfcalib}'s
 ``self-calibration is safe'' result on base models;
 (3) a practitioner decision surface: FP8 is calibration-agnostic and
 the safe default when hardware allows; AWQ INT4 is mildly sensitive
-with domain calibration providing small consistent gains
-($+$0.55\,pp WMDP, $+$0.22\,pp MMLU); SmoothQuant is
+with domain calibration trending positively but within Wilson 95\%
+CI half-widths ($+$0.55\,pp WMDP, $+$0.22\,pp MMLU); SmoothQuant is
 calibration-critical and self-generated data must be avoided.
 We do \emph{not} claim domain calibration universally outperforms
 generic calibration: the data contradicts that for SmoothQuant on
@@ -243,7 +243,7 @@ fine-tuning on 83K cybersecurity instruction examples (rank-16 LoRA
 adapters over $q,k,v,o,\text{gate},\text{up},\text{down}$ projections,
 2 epochs, batch size 8, learning rate $2\times10^{-4}$).  The FP16
 fine-tuned model achieves approximately 44--46\% on \wmdp{} and
-63--65\% on MMLU, establishing our quality ceiling.  All experiments run on a single Lambda A10 (24\,GB); end-to-end
+63--65\% on MMLU, establishing our quality ceiling.  All experiments run on a single A10 GPU (24\,GB); end-to-end
 reproduction of the full 27-configuration table from base checkpoints
 costs approximately \$50 of cloud compute (${\sim}1$ GPU-day) at
 current rates.  All subsequent quantization is applied to this fine-tuned
@@ -377,8 +377,8 @@ Table~\ref{tab:main} presents accuracy for all nine quantized variants.
 \end{table*}
 
 The MMLU spread per format orders sharply: FP8 0.00\,pp (calibration-
-invariant), AWQ INT4 $\le 0.75$\,pp (within one Wilson CI half-width
-at $n=14{,}042$), SmoothQuant INT8 9.08\,pp (over $11\times$ the
+invariant), AWQ INT4 0.30\,pp (within one Wilson CI half-width at
+$n=14{,}042$), SmoothQuant INT8 9.08\,pp (over $11\times$ the
 $\pm$0.80\,pp Wilson half-width), dominated by the C2 regression
 shown in Figure~\ref{fig:sensitivity}.
 
@@ -631,17 +631,17 @@ scores.
 \multirow{3}{*}{AWQ INT4}
   & C1 Generic  & 36.48 & -- \\
   & C2 Self-gen & 37.47 & $+$0.99 \\
-  & C3 Domain   & \textbf{37.51} & $+$1.03 \\
+  & C3 \dacs{}  & \textbf{37.51} & $+$1.03 \\
 \midrule
 \multirow{3}{*}{SQ INT8}
   & C1 Generic  & 36.54 & -- \\
   & C2 Self-gen & 34.74 & $-$1.80 \\
-  & C3 Domain   & 35.06 & $-$1.48 \\
+  & C3 \dacs{}  & 35.06 & $-$1.48 \\
 \midrule
 \multirow{3}{*}{FP8}
   & C1 Generic  & \textbf{38.38} & -- \\
   & C2 Self-gen & \textbf{38.38} & $~~$0.00 \\
-  & C3 Domain   & \textbf{38.38} & $~~$0.00 \\
+  & C3 \dacs{}  & \textbf{38.38} & $~~$0.00 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -678,8 +678,9 @@ sensitive.}
 \paragraph{Practitioner decision surface.}
 Our findings imply a concrete deployment procedure.  If target
 hardware supports FP8 natively, calibration-data choice is immaterial.
-For AWQ INT4, domain calibration is a safe default with small
-consistent gains (0.22--0.55\,pp).  For SmoothQuant INT8, calibration
+For AWQ INT4, domain calibration is a safe default with positive
+but sub-CI-half-width deltas (0.22--0.55\,pp, within Wilson 95\%
+sampling noise).  For SmoothQuant INT8, calibration
 is deployment-critical: any corpus that underestimates inference-time
 activation ranges degrades MMLU-style general capability
 proportionally to the gap.  Self-generated text from a domain
