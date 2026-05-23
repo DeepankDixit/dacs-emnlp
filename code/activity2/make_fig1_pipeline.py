@@ -143,10 +143,10 @@ for (cal, fmt), val in cells.items():
             fontsize=10, fontweight="bold" if is_anomaly else "normal",
             color=HIGHLIGHT_EDGE if is_anomaly else TEXT_COLOR)
 
-# Annotate the anomaly
+# Annotate the anomaly (positioned above the matrix to avoid overlap)
 ax.annotate(
-    "Self-cal\nfailure\n(−9.08 pp)",
-    xy=(10.25, 2.85), xytext=(10.6, 3.7),
+    "Self-cal failure\n(−9.08 pp)",
+    xy=(10.25, 3.25), xytext=(10.4, 5.0),
     fontsize=7.5, color=HIGHLIGHT_EDGE, fontweight="bold",
     ha="center",
     arrowprops=dict(arrowstyle="->", color=HIGHLIGHT_EDGE, lw=0.9),

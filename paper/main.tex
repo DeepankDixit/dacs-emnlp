@@ -44,7 +44,7 @@ FP8) with three calibration conditions: generic text (C1), model
 self-generated text (C2), and domain-aligned text (C3, here called \dacs{}),
 across \emph{three} fine-tuned domains: cybersecurity (Llama~3.1~8B on 83K
 examples), biomedical (Llama-3-Med42-8B), and code (CodeLlama-7B-Instruct),
-yielding 27 configurations evaluated on both in-domain and MMLU benchmarks.
+a 3$\times$3 sensitivity grid replicated on three differently fine-tuned checkpoints (27 evaluation cells), measured on both in-domain and MMLU benchmarks.
 Three findings emerge.  \emph{First}, calibration sensitivity is sharply
 format-dependent: the max calibration spread on MMLU is 0.00\,pp for FP8,
 up to 1.03\,pp for AWQ INT4, and up to 9.08\,pp for SmoothQuant INT8;
@@ -54,7 +54,7 @@ calibration, previously shown to be competitive on base models
 \citep{williams2025selfcalib}, causes a substantial MMLU regression under
 SmoothQuant on every domain tested (9.08\,pp on cybersecurity, 2.41\,pp on
 biomedical, 1.80\,pp on code; all exceed the Wilson 95\,\% half-width by a
-factor of 2--11$\times$), with severity scaling inversely with domain breadth.  The
+factor of 2--11$\times$), with the rank ordering across the three checkpoints consistent with a domain-narrowness scaling hypothesis we cannot definitively test from three confounded data points.  The
 failure is SmoothQuant-specific, however: for AWQ on the biomedical Med42
 checkpoint, self-generated calibration is in fact the \emph{best} MedQA
 condition ($+$3.20\,pp vs.\ generic), underscoring that calibration choice
@@ -63,7 +63,7 @@ calibration partially rescues this failure mode but does not uniformly
 dominate generic calibration.
 We argue that cross-format sensitivity maps, not single-method proposals, are
 what practitioners deploying quantized domain LLMs actually need.  Our
-27-configuration result table, calibration corpora, and evaluation harness are
+27-cell evaluation grid, calibration corpora, and evaluation harness are
 released at \url{https://anonymous.4open.science/r/DACS-anon} to enable
 replication.
 \end{sloppypar}
@@ -244,7 +244,7 @@ adapters over $q,k,v,o,\text{gate},\text{up},\text{down}$ projections,
 2 epochs, batch size 8, learning rate $2\times10^{-4}$).  The FP16
 fine-tuned model achieves approximately 44--46\% on \wmdp{} and
 63--65\% on MMLU, establishing our quality ceiling.  All experiments run on a single A10 GPU (24\,GB); end-to-end
-reproduction of the full 27-configuration table from base checkpoints
+reproduction of the full 27-cell evaluation grid from base checkpoints
 costs approximately \$50 of cloud compute (${\sim}1$ GPU-day) at
 current rates.  All subsequent quantization is applied to this fine-tuned
 checkpoint.
@@ -269,8 +269,12 @@ SmoothQuant is structurally the most calibration-sensitive of the
 three.  \textbf{FP8} (E4M3) \citep{micikevicius2022fp8} quantizes
 both weights and activations to 8-bit floating-point; the 4-bit
 exponent absorbs scale variation, so calibration-induced
-mis-selection becomes rounding noise rather than clipping.  We use
-NVIDIA's TensorRT-ModelOpt implementations throughout.
+mis-selection becomes rounding noise rather than clipping.  We
+observe that FP8 outputs are bit-equal across C1/C2/C3 on every
+domain (Tables 1--3); we cannot distinguish true argmax-resolution
+insensitivity from ModelOpt's FP8 path defaulting to a
+calibration-independent scale, but the deployment implication is
+identical.  We use NVIDIA's TensorRT-ModelOpt throughout.
 \end{sloppypar}
 
 \subsection{Calibration Conditions}
@@ -298,13 +302,12 @@ checkpoint, which is the regime we test.
 
 \paragraph{C3: Domain-aligned (\dacs{}).}
 \begin{sloppypar}
-A corpus drawn from cybersecurity literature and general academic
-text, constructed to reflect the joint deployment distribution
-across \wmdp{} (cyber) and MMLU (broad academic).  The corpus is
-prepared via \path{prepare_dacs_calib.py} and stored as
-\path{dacs_calib_512.jsonl}.  We use \dacs{} as a convenient label
-for this condition; we do \emph{not} claim it is a novel method,
-it is the domain-aligned control condition that defines our
+For each domain, C3 is a 512-passage instruction-text corpus drawn
+from the public dataset most closely matching the model's
+fine-tuning distribution (Appendix~\ref{app:c3} for per-domain
+sources, mixture, and licenses).  We use \dacs{} as a convenient
+label for this condition; we do \emph{not} claim it is a novel
+method, it is the domain-aligned control condition that defines our
 C1/C2/C3 contrast.
 \end{sloppypar}
 
@@ -525,12 +528,10 @@ We replicate the 3$\times$3 grid on the public biomedical checkpoint
 Med42-8B (8B parameters, FP16; baselines MedQA 63.20\,\%,
 MMLU 60.70\,\%) and on CodeLlama-7B-Instruct
 (MMLU baseline 38.38\,\%).  Calibration, hardware, and evaluation
-protocols match \S\ref{sec:method}: C1 = WikiText-2 (uniform across
-formats); C2 = self-generated continuations from each target model
-($T{=}0.8$, 512 sequences); C3 = a per-domain corpus
-(PubMedQA + MedicalMeadow for medical, CodeSearchNet + OSS-Instruct
-for code).  MedQA is evaluated on a 500-question random subsample
-($n=500$, Wilson 95\,\% half-width $\pm$4.34\,pp).
+protocols match \S\ref{sec:method}; C3 corpus composition for each
+domain is documented in Appendix~\ref{app:c3}.  MedQA is evaluated
+on a 500-question random subsample ($n=500$, Wilson 95\,\%
+half-width $\pm$4.34\,pp).
 \end{sloppypar}
 
 \begin{table*}[t]
@@ -593,7 +594,7 @@ fine-tuned with a broader recipe than our narrow QLoRA cybersecurity
 adapter, resulting in less activation-distribution narrowing under
 self-generated decoding.  This confirms that the failure mode is not
 an artefact of our specific fine-tuning setup; it generalises, but
-that its severity scales with the degree of domain narrowing.
+that its magnitude orders consistently with the apparent degree of domain narrowing across our three checkpoints (with the model-family confound acknowledged in Limitations).
 
 \paragraph{C3 (\dacs{}) vs.\ C1 and C2.}
 C3 outperforms C1 on the in-domain task for both formats where
@@ -658,9 +659,10 @@ text, limiting the extent to which self-generated decoding underestimates
 the full activation range.  The hierarchy FP8 $<$ AWQ $<$ SQ is preserved.
 
 Figure~\ref{fig:summary} summarises the calibration spread per
-(format, domain) across all 27 configurations; SQ INT8 magnitude
-scales with domain narrowness (cybersecurity 9.08 $>$ medical 2.41
-$>$ code 1.80\,pp), reinforcing the activation-range mechanism.
+(format, domain) across all 27 cells; SQ INT8 magnitude orders
+consistently with the apparent degree of domain narrowing across our
+three checkpoints (cybersecurity 9.08 $>$ medical 2.41 $>$ code
+1.80\,pp), reinforcing the activation-range mechanism.
 
 \begin{figure}[h]
 \centering
@@ -675,64 +677,51 @@ sensitive.}
 \section{Discussion}
 \label{sec:discussion}
 
-\paragraph{Practitioner decision surface.}
-Our findings imply a concrete deployment procedure.  If target
-hardware supports FP8 natively, calibration-data choice is immaterial.
-For AWQ INT4, domain calibration is a safe default with positive
-but sub-CI-half-width deltas (0.22--0.55\,pp, within Wilson 95\%
-sampling noise).  For SmoothQuant INT8, calibration
-is deployment-critical: any corpus that underestimates inference-time
-activation ranges degrades MMLU-style general capability
-proportionally to the gap.  Self-generated text from a domain
-fine-tuned model is the highest-risk option, because domain
-specialisation narrows the activation distribution by construction;
-generic text such as WikiText-2 is both safer and, counterintuitively,
-better for MMLU retention than domain-specific corpora: its breadth
-matches the breadth of the evaluation distribution.
+\paragraph{Practitioner decision surface (scoped).}
+For these three checkpoints in the 7--8B size band on A10-class
+hardware: if hardware supports FP8 natively, calibration-data choice
+is empirically immaterial (Tables 1--3 show 0.00\,pp spread on every
+domain).  For AWQ INT4, domain calibration shows sub-CI-half-width
+deltas (0.22--0.55\,pp) and is statistically indistinguishable from
+generic in this study.  For SmoothQuant INT8, calibration is
+deployment-critical: any corpus that underestimates inference-time
+activation ranges degrades MMLU proportionally to the gap.
+Self-generated text from a domain fine-tuned model is the
+highest-risk option (specialisation narrows the activation
+distribution by construction); generic WikiText-2 is safer and
+better for MMLU retention than domain corpora because its breadth
+matches the evaluation distribution.  These observations should not
+be extrapolated to larger model sizes or non-English fine-tuning
+distributions without further study.
 
 \paragraph{Boundary condition for self-calibration.}
-The failure requires three conditions to coincide: (i) a domain
-fine-tuned model (narrow activation distribution), (ii) a joint
-weight--activation quantization method (smoothing vector is a
-direct function of that distribution), and (iii) a deployment
-benchmark broader than the fine-tuned domain (inference activations
-exceed the calibrated range).  Removing any one breaks the failure,
-which is why SQ\,C2 on \wmdp{} (cyber-matched) shows 0.00\,pp
-while MMLU (57 subjects) shows $-$9.08\,pp, and why regression
-magnitude scales with domain breadth (cyber 9.08, medical 2.41,
-code 1.80\,pp).
+The failure requires three conditions to coincide: a domain
+fine-tuned model (narrow activations), a joint weight--activation
+quantization method (smoothing vector is a direct function of those
+activations), and a deployment benchmark broader than the fine-tuned
+domain.  Removing any one breaks the failure, which is why SQ\,C2 on
+\wmdp{} (cyber-matched) shows 0.00\,pp while MMLU (57 subjects)
+shows $-$9.08\,pp, consistent with the rank ordering across our
+three checkpoints (9.08 / 2.41 / 1.80\,pp).
 
-\paragraph{Pre-quantization diagnostic.}
-The cleanly-separated per-layer C2 underestimation distributions
-(\S\ref{sec:mechanism}, Fig.~\ref{fig:gap_per_layer}) suggest a
-cheap screening step: measure the per-layer activation range ratio
-of a candidate calibration corpus against a small general-domain
-reference set before committing to SmoothQuant conversion.  As an
-empirical threshold from our data, if the median per-layer ratio
-falls below $\sim$0.95 (gap $> 0.05$), augment with generic text.
-The measurement is a single forward pass over 128 samples.
 
 % ============================================================
 \section{Conclusion}
 \label{sec:conclusion}
 
-Across 27 configurations spanning cybersecurity, biomedical, and code
-fine-tuned LLMs, calibration sensitivity orders strictly as
-FP8 $<$ AWQ INT4 $<$ SmoothQuant INT8 and the order is
+Across a 3$\times$3 sensitivity grid replicated on three differently
+fine-tuned 7--8B checkpoints (27 evaluation cells), calibration
+sensitivity orders strictly FP8 $<$ AWQ INT4 $<$ SmoothQuant INT8,
 mechanistically grounded in each format's structural calibration
 dependence.  SmoothQuant's self-calibration failure on domain
-fine-tuned models replicates across all three domains
+fine-tuned models replicates on all three checkpoints
 (9.08 / 2.41 / 1.80\,pp MMLU regression, all 2--11$\times$ the
-Wilson 95\,\% half-width) with severity scaling inversely with
-domain breadth.  The actionable surface: use FP8 if hardware allows;
-for AWQ, domain calibration gives a modest consistent gain; for
-SmoothQuant, never use self-generated calibration.  Our contribution
-is characterisation, not method proposal; a sensitivity map
-concurrent method-proposal work (\citealp{mixcal2026};
-\citealp{levi2026pertask}) can target.
+Wilson half-width).  Deployment guidance: use FP8 if hardware
+allows; under SmoothQuant at default $\alpha\!=\!0.5$, avoid
+self-generated calibration on narrow fine-tuned models.  Our contribution is characterisation, not method proposal.
 
-\paragraph{Limitations.}
-\begin{sloppypar}
+\section*{Limitations}
+
 The cybersecurity study uses our own QLoRA fine-tuned checkpoint; the
 medical and code extensions use public checkpoints (Med42-8B,
 CodeLlama-7B-Instruct), introducing two confounds.  First, fine-tuning
@@ -741,45 +730,69 @@ differs from our narrow QLoRA cybersecurity adapter, and either
 factor could plausibly contribute to the smaller SQ\,C2 regression we
 observe on medical (2.41\,pp vs.\ 9.08\,pp on cybersecurity).  Second,
 CodeLlama-7B-Instruct is a 7B model rather than 8B, so the apparent
-scaling of SQ\,C2 regression magnitude with domain narrowness
-(9.08 $>$ 2.41 $>$ 1.80\,pp) is not fully separable from model size.
-In-domain knowledge retention for the code domain is not measured in
-this study: HumanEval is a generation benchmark and is incompatible
-with our logit-based MCQ scorer, so we report MMLU only for code, and
-treat cross-format sensitivity (rather than absolute capability) as the
-quantity of interest there.  The 512-token sequence-length cap may
-underrepresent long-context calibration patterns.  MedQA results
-($n=500$) carry a Wilson 95\,\% half-width of $\pm$4.34\,pp, so MedQA
-deltas below that threshold should be read as descriptive rather than
-inferential.  The SQ\,C2 activation-range mechanism is confirmed via
-direct per-layer measurement: the cyber per-layer underestimation gap
-distribution (median 0.153, $n = 224$ SmoothQuant-targeted layers) is
-cleanly non-overlapping with the medical (median 0.015) and code
-(median 0.007) distributions; the rank order of these distributions
-matches the rank order of the corresponding SQ\,C2 MMLU regressions
-(\S\ref{sec:mechanism}), and all accuracy comparisons in the main
-tables are accompanied by Wilson 95\,\% CIs.  We believe the format-sensitivity \emph{order}
+rank ordering of SQ\,C2 regression magnitudes across three
+checkpoints (9.08 $>$ 2.41 $>$ 1.80\,pp) is not fully separable from
+model size or pre-training family.  In-domain knowledge retention for
+the code domain is not measured here: HumanEval is a generation
+benchmark and is incompatible with our logit-based MCQ scorer, so we
+report MMLU only for code and treat cross-format sensitivity (rather
+than absolute capability) as the quantity of interest there.
+
+\begin{sloppypar}
+Each (format, calibration, domain) cell is evaluated with a single
+calibration draw and at SmoothQuant's default
+$\alpha\!=\!0.5$; our Wilson 95\% intervals therefore bound
+evaluation-sampling noise but not (a) variance across alternative
+self-generated, WikiText-2, or \dacs{} sub-samples or (b) sensitivity
+to $\alpha$.  The mechanism-level evidence (per-layer
+underestimation gap distributions over $n=224$ SmoothQuant-targeted
+modules per domain, with non-overlapping cyber / medical / code
+IQRs) provides architectural rather than statistical bounds on the
+central failure mode, but a multi-seed and $\alpha$-swept replication
+of the SQ\,C2 cell is deferred to revision work.
+\end{sloppypar}
+
+The 512-token sequence-length cap may underrepresent long-context
+calibration patterns.  MedQA results ($n=500$) carry a Wilson 95\,\%
+half-width of $\pm$4.34\,pp, so MedQA deltas below that threshold
+should be read as descriptive rather than inferential.  All accuracy
+comparisons in the main tables are accompanied by Wilson 95\,\% CIs;
+the practitioner decision surface in \S\ref{sec:discussion} is
+scoped to the three checkpoints, the 7--8B size band, and the
+A10-class hardware we evaluate, and should not be over-generalised
+beyond that envelope.  We believe the format-sensitivity \emph{order}
 (FP8 $<$ AWQ $<$ SQ) will generalise because it is mechanistically
-grounded; the results across three domains support this, but the
-specific regression magnitudes vary domain-dependently
+grounded; the rank ordering across three domains supports this, but
+the specific regression magnitudes are domain-dependent
 (9.08\,pp cyber, 2.41\,pp medical, 1.80\,pp code).
 
-\paragraph{Ethical Considerations.}
+\section*{Ethical Considerations}
+
+\begin{sloppypar}
 This work evaluates post-training quantization of publicly available
 language models on publicly released benchmarks; no human-subjects
 research was conducted and no new sensitive data was collected.
-\wmdp{} \citep{li2024wmdp} is a hazardous-knowledge proxy benchmark
-released as a paired evaluation--unlearning toolkit; we use only its
-multiple-choice evaluation component as a domain-knowledge retention
-probe, with no unlearning
-intervention applied, consistent with the benchmark's release license.
-Quantization broadly improves the accessibility of LLM inference by
-reducing memory and compute requirements; the calibration-sensitivity
-characterization we provide is intended to help practitioners deploy
-quantized domain models reliably.  Generative AI assistance was used
-for writing polish (proofreading, sentence-level editing) and coding
-support (debugging, scripting); all research design, experimental
-methodology, analyses, and claims are the authors' own.
+\wmdp{} \citep{li2024wmdp} is a hazardous-knowledge proxy
+benchmark released as a paired evaluation--unlearning toolkit; we
+use only its multiple-choice evaluation component as a
+domain-knowledge retention probe, with no unlearning intervention
+applied, consistent with the benchmark's release license.
+Calibration corpora used in this study are derived from publicly
+released datasets retaining their upstream licenses (WikiText-2
+CC-BY-SA-3.0; the Trendyol cybersecurity instruction dataset,
+PubMedQA, MedQA-USMLE, and CodeAlpaca under their respective
+open-source releases).  No calibration corpus contains personally
+identifying information; the WMDP hazardous-knowledge content is
+used only for capability-retention evaluation, not for training
+data.  Quantization broadly improves the accessibility of LLM
+inference by reducing memory and compute requirements; the
+calibration-sensitivity characterization we provide is intended to
+help practitioners deploy quantized domain models reliably.
+Generative AI assistance (Anthropic's Claude family of models) was
+used for writing polish (proofreading, sentence-level editing) and
+coding support (debugging, scripting); all research design,
+experimental methodology, analyses, and claims are the authors' own.
+\end{sloppypar}
 
 % ============================================================
 % Appendix
@@ -927,6 +940,59 @@ per-layer summary statistics
 anonymised repository at
 \url{https://anonymous.4open.science/r/DACS-anon}.
 \end{sloppypar}
+
+\subsection{C3 (\dacs{}) Calibration Corpus Composition}
+\label{app:c3}
+
+\begin{sloppypar}
+C3 corpora for all three domains are released as JSONL in the
+anonymised repository (\path{outputs/cyber_c3_calib_512.jsonl},
+\path{outputs/med_c3_calib_512.jsonl},
+\path{outputs/code_c3_calib_512.jsonl}); the cybersecurity C3 file
+is additionally mirrored at \path{data/dacs_calib_512.jsonl}.  Each
+corpus is 512 passages capped at 512 tokens.  Table~\ref{tab:c3}
+enumerates per-domain sources, mixture, and licenses.
+\end{sloppypar}
+
+\begin{table}[h]
+\centering
+\small
+\caption{Per-domain C3 calibration corpus composition.  Each corpus
+         is 512 passages, length-filtered ($\geq$60 chars for code,
+         $\geq$100 chars for medical, $\geq$20 chars for cyber),
+         random-shuffled with fixed seed=42 for reproducibility.}
+\label{tab:c3}
+\begin{tabular}{@{}p{0.14\columnwidth}p{0.55\columnwidth}p{0.21\columnwidth}@{}}
+\toprule
+\textbf{Domain} & \textbf{Source(s)} & \textbf{License} \\
+\midrule
+Cyber &
+512 assistant-turn responses from the public Trendyol cybersecurity
+instruction-tuning dataset (same public corpus as the 83K
+fine-tuning split). &
+Apache-2.0 \\
+\midrule
+Medical &
+PubMedQA \texttt{pqa\_labeled} long-answer passages plus
+MedQA-USMLE-4-options train-split explanations, interleaved 1:1. &
+PubMedQA MIT, MedQA MIT \\
+\midrule
+Code &
+CodeAlpaca-20k Python-heavy assistant outputs, length-filtered. &
+CC-BY-NC-4.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For the cybersecurity domain, C3 is sampled from the same public
+instruction corpus as the model's fine-tuning split (assistant-turn
+responses only), making it the strongest form of "domain-aligned"
+calibration in this study; this design choice is documented and is
+consistent with our framing of C3 as a per-domain control condition
+rather than an in-distribution leak (the calibration sample and the
+fine-tuning sample are disjoint draws from the same upstream
+corpus, and the evaluation benchmarks \wmdp{} and MMLU are not
+sourced from the Trendyol corpus).
 
 \bibliography{references}
 \bibliographystyle{plainnat}

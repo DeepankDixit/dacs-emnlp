@@ -108,15 +108,23 @@ else:
         ax.axhline(1.0, color="black", linestyle="--", linewidth=1.2,
                    label="MMLU (inference)", zorder=3)
 
-        # Annotate the C2 underestimation gap
+        # Annotate the C2 underestimation gap (place above dashed line if gap
+        # is small, otherwise centered between C2 bar top and the dashed line)
         c2_ratio = agg["c2"]["mean_range_ratio"]
         c3_ratio = agg["c3"]["mean_range_ratio"]
         gap = 1.0 - c2_ratio
         if gap > 0.005:
+            # If the gap region is wider than ~0.05, place label inside it.
+            # Otherwise place label above the dashed reference line to avoid
+            # crossing through it.
+            if gap >= 0.10:
+                label_y = (c2_ratio + 1.0) / 2
+            else:
+                label_y = 1.0 + 0.025
             ax.annotate(
-                f"↓{gap:.3f}\ngap",
+                f"↓{gap:.3f} gap",
                 xy=(1, c2_ratio),
-                xytext=(1.55, (c2_ratio + 1.0) / 2),
+                xytext=(1.55, label_y),
                 fontsize=7,
                 color="#E05C34",
                 ha="center",
