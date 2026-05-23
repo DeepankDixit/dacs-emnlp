@@ -96,8 +96,8 @@ code/
 │   ├── common.py                    # Domain configuration (HF IDs, paths)
 │   ├── download_models.py
 │   ├── prepare_c1.py                # C1 generic (WikiText-2) corpus builder
-│   ├── build_med_c3.py              # C3 medical corpus (PubMedQA + MedicalMeadow)
-│   ├── build_code_c3.py             # C3 code corpus (CodeSearchNet + OSS-Instruct)
+│   ├── build_med_c3.py              # C3 medical corpus (PubMedQA + MedQA-USMLE train)
+│   ├── build_code_c3.py             # C3 code corpus (CodeAlpaca-20k)
 │   ├── generate_self_calib.py       # C2 per-domain
 │   ├── quant_awq.py / sq.py / fp8.py  # Per-domain quantization
 │   └── evaluate_all.py
@@ -135,10 +135,15 @@ sequences per domain.
 
 **C3 (DACS / domain-aligned).** Per-domain corpus drawn from publicly
 available training distributions:
-- Cybersecurity: cybersecurity Q&A passages (released as
-  `data/dacs_calib_512.jsonl`)
-- Biomedical: PubMedQA + MedicalMeadow
-- Code: CodeSearchNet + OSS-Instruct
+- Cybersecurity: 512 assistant-turn responses sampled from the
+  Trendyol cybersecurity instruction-tuning dataset (the same public
+  corpus that supplies the 83K fine-tuning split); released as
+  `data/dacs_calib_512.jsonl` and `outputs/cyber_c3_calib_512.jsonl`
+- Biomedical: PubMedQA (`qiaojin/PubMedQA`, `pqa_labeled`, long-answer
+  passages) + MedQA-USMLE-4-options train-split
+  (`GBaker/MedQA-USMLE-4-options`) interleaved
+- Code: CodeAlpaca-20k (`sahil2801/CodeAlpaca-20k`) Python-heavy
+  assistant outputs
 
 All conditions use 512 sequences × 512 tokens, held constant across
 the study to isolate data-distribution effects from data-size effects.
@@ -255,7 +260,8 @@ per-layer medians) is reproducible exactly by reading these JSONs.
 
 ## License
 
-This work is released under the MIT License — see [LICENSE](LICENSE).
+This work is released under the MIT License; see [LICENSE](LICENSE).
 The released calibration corpora retain their upstream dataset licenses
-(WikiText-2: CC BY-SA 3.0; PubMedQA: MIT; CodeSearchNet: per-source;
-MedicalMeadow: per-source).
+(WikiText-2: CC BY-SA 3.0; Trendyol cybersecurity instruction dataset:
+Apache-2.0; PubMedQA: MIT; MedQA-USMLE: MIT; CodeAlpaca-20k:
+CC-BY-NC-4.0, research use).

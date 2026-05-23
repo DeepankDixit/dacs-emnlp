@@ -78,3 +78,4 @@ DACS_Pre-Submission_Review.md
 # ── Stale figure (replaced by fig6_per_layer_distribution.pdf) ───────────────
 paper/fig6_kl_vs_regression.pdf
 *.drawio
+OPENREVIEW_*
