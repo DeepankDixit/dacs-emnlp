@@ -258,13 +258,15 @@ if all(d in data for d in ["cyber", "med", "code"]):
                 f"SQ C2 reg.\n{reg:.2f} pp",
                 ha="center", va="top",
                 fontsize=7.5, color=DOMAIN_COLORS[d], fontweight="bold")
-        # Median value label below x-axis
-        ax.text(pos, -0.03, f"median = {median_gap:.3f}\n(n = {len(per_layer_gaps[d])} layers)",
+        # Median value label well below x-tick labels
+        ax.text(pos, -0.20, f"median = {median_gap:.3f}\n(n = {len(per_layer_gaps[d])} layers)",
                 ha="center", va="top", fontsize=6.5, color="#555555",
                 transform=ax.get_xaxis_transform())
 
     ax.set_xticks(positions)
     ax.set_xticklabels([DOMAIN_LABELS_SHORT[d] for d in domains], fontsize=9)
+    # Leave room below x-axis labels for median/n annotation
+    fig.subplots_adjust(bottom=0.22)
     ax.set_ylabel("Per-layer C2 underestimation gap\n(1 − C2 range ratio)", fontsize=9)
     ax.set_ylim(-0.02, ymax)
     ax.set_facecolor("#FAFAFA")

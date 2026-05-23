@@ -248,8 +248,8 @@ in sync with the underlying data.
 | `results/activity4_per_layer_stats.json` | Per-layer summary statistics (median, IQR, n) per domain |
 
 Every numerical value in the paper (Tables 1–3, Figs 2–6, the headline
-9.08 pp / 22.3σ regression, the Pearson r and per-layer medians) is
-reproducible exactly by reading these JSONs.
+9.08 pp SQ-C2 regression at >11× the Wilson 95% half-width, and the
+per-layer medians) is reproducible exactly by reading these JSONs.
 
 ---
 

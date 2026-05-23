@@ -110,11 +110,13 @@ for i_c, calib in enumerate(["c1", "c2", "c3"]):
            label=f"{calib.upper()} {CALIB_LABELS[calib].replace(chr(10), ' ')}",
            edgecolor="white", linewidth=0.5)
 
-# Value labels on bars
+# Value labels on bars (offset enough to clear FP16 dashed line at 63.5)
 for i_f, fmt in enumerate(FORMATS):
     for i_c, calib in enumerate(["c1", "c2", "c3"]):
         y = cyber_mmlu(fmt, calib)
-        ax.text(fmt_positions[i_f] + i_c * bar_width, y + 1.0,
+        # If the bar is close to the FP16 line (63.5), shift label to ~2pp above
+        offset = 2.2 if abs(y - 63.5) < 2.0 else 1.0
+        ax.text(fmt_positions[i_f] + i_c * bar_width, y + offset,
                 f"{y:.2f}", ha="center", fontsize=7.5, color="#333333")
 
 # FP16 baseline dashed line
@@ -128,7 +130,7 @@ sq_c2 = cyber_mmlu("int8_sq", "c2")
 delta = sq_c2 - sq_c1   # negative
 sq_c2_x = fmt_positions[FORMATS.index("int8_sq")] + 1 * bar_width
 ax.annotate(
-    f"$\\Delta = {delta:+.2f}$\\,pp",
+    f"$\\Delta = {delta:+.2f}$ pp",
     xy=(sq_c2_x, sq_c2),
     xytext=(sq_c2_x + 0.05, sq_c2 - 6),
     fontsize=8.5, color="#E05C34", fontweight="bold",
@@ -136,20 +138,21 @@ ax.annotate(
     arrowprops=dict(arrowstyle="->", color="#E05C34", lw=1.0),
 )
 
-# Calibration spread annotation under each group
+# Calibration spread annotation BELOW x-axis (in axes-fraction coords so it
+# never collides with the plot area)
 for i_f, fmt in enumerate(FORMATS):
     ys = [cyber_mmlu(fmt, c) for c in ["c1", "c2", "c3"]]
     spread = max(ys) - min(ys)
     cx = fmt_positions[i_f] + bar_width
-    ax.text(cx, 40.5, f"spread\n{spread:.2f}\\,pp",
-            ha="center", fontsize=7.5, color="#555555",
-            transform=ax.transData)
+    ax.text(cx, -0.16, f"spread {spread:.2f} pp",
+            ha="center", va="top", fontsize=7.5, color="#555555",
+            transform=ax.get_xaxis_transform())
 
 ax.set_xticks(fmt_positions + bar_width)
 ax.set_xticklabels([FORMAT_LABELS[f] for f in FORMATS], fontsize=10, fontweight="bold")
-ax.set_ylabel("MMLU accuracy (\\%)", fontsize=10)
-ax.set_ylim(42, 70)
-ax.set_title("Cybersecurity domain: calibration sensitivity on MMLU (Wilson 95\\,\\% CI shown)",
+ax.set_ylabel("MMLU accuracy (%)", fontsize=10)
+ax.set_ylim(45, 70)
+ax.set_title("Cybersecurity domain: calibration sensitivity on MMLU (Wilson 95% CI shown)",
              fontsize=9, fontweight="bold", pad=8)
 ax.set_facecolor("#FAFAFA")
 ax.spines["top"].set_visible(False)
@@ -192,14 +195,13 @@ for ax, (tag, label, _) in zip(axes, domains):
         for x, y in zip(xs, ys):
             ax.text(x, y + 0.6, f"{y:.1f}", ha="center", fontsize=6.5, color="#333333")
 
-    # Per-format spread
+    # Per-format spread (below x-axis in axes-fraction coords)
     for i_f, fmt in enumerate(FORMATS):
         ys = [get_mmlu(tag, fmt, c) for c in ["c1", "c2", "c3"]]
         spread = max(ys) - min(ys)
         cx = fmt_positions[i_f] + bar_width
-        ax.text(cx, ax.get_ylim()[0] if False else 0,
-                f"spread {spread:.2f}\\,pp",
-                ha="center", fontsize=6.5, color="#555555",
+        ax.text(cx, -0.18, f"spread {spread:.2f} pp",
+                ha="center", va="top", fontsize=6.5, color="#555555",
                 transform=ax.get_xaxis_transform())
 
     # FP16 baseline dashed line
@@ -220,7 +222,7 @@ for ax, (tag, label, _) in zip(axes, domains):
     ymax = max(FP16_BASELINE_MMLU[tag], max(all_ys)) + 4
     ax.set_ylim(ymin, ymax)
 
-axes[0].set_ylabel("MMLU accuracy (\\%)", fontsize=9)
+axes[0].set_ylabel("MMLU accuracy (%)", fontsize=9)
 
 # Single legend across the figure
 legend_handles = [
@@ -265,7 +267,7 @@ for dom_tag, off in dom_offsets.items():
 
 ax.set_xticks(fmt_x)
 ax.set_xticklabels([FORMAT_LABELS[f] for f in FORMATS], fontsize=10, fontweight="bold")
-ax.set_ylabel("MMLU calibration spread\n(max\\,$-$\\,min over C1/C2/C3, pp)", fontsize=9)
+ax.set_ylabel("MMLU calibration spread\n(max $-$ min over C1/C2/C3, pp)", fontsize=9)
 ax.set_title("Calibration sensitivity per (format $\\times$ domain) on MMLU",
              fontsize=10, fontweight="bold", pad=8)
 ax.set_facecolor("#FAFAFA")
