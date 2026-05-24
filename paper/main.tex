@@ -706,30 +706,24 @@ better for MMLU retention than domain corpora because its breadth
 matches the evaluation distribution.
 
 \paragraph{Boundary condition for self-calibration.}
-The failure requires three conditions to coincide: a domain
-fine-tuned model (narrow activations), a joint weight--activation
-quantization method (smoothing vector is a direct function of those
-activations), and a deployment benchmark broader than the fine-tuned
-domain.  Removing any one breaks the failure, which is why SQ\,C2 on
-\wmdp{} (cyber-matched) shows 0.00\,pp while MMLU (57 subjects)
-shows $-$9.08\,pp, consistent with the rank ordering across our
-three checkpoints (9.08 / 2.41 / 1.80\,pp).
+The failure requires three conditions: a domain fine-tuned model, a
+joint weight--activation method, and a deployment benchmark broader
+than the fine-tuned domain.  Removing any one breaks it
+(\S\ref{sec:anomaly}).
 
 
 % ============================================================
 \section{Conclusion}
 \label{sec:conclusion}
 
-Across a 3$\times$3 sensitivity grid replicated on three differently
-fine-tuned 7--8B checkpoints (27 evaluation cells), calibration
-sensitivity orders strictly FP8 $<$ AWQ INT4 $<$ SmoothQuant INT8,
-mechanistically grounded in each format's structural calibration
-dependence.  SmoothQuant's self-calibration failure on domain
-fine-tuned models replicates on all three checkpoints
-(9.08 / 2.41 / 1.80\,pp MMLU regression, all 2--11$\times$ the
-Wilson half-width).  Deployment guidance: use FP8 if hardware
-allows; under SmoothQuant at default $\alpha\!=\!0.5$, avoid
-self-generated calibration on narrow fine-tuned models.  Our contribution is characterisation, not method proposal.
+Across a 3$\times$3 grid on three fine-tuned 7--8B checkpoints
+(27 cells), calibration sensitivity orders strictly FP8 $<$ AWQ
+INT4 $<$ SmoothQuant INT8, mechanistically grounded in each format's
+structural calibration dependence.  SmoothQuant's self-calibration
+failure replicates on all three checkpoints (9.08 / 2.41 / 1.80\,pp
+MMLU regression, 2--11$\times$ the Wilson half-width).  Use FP8 if
+hardware allows; for SmoothQuant at default $\alpha\!=\!0.5$, avoid
+self-generated calibration on narrow fine-tuned models.
 
 \section*{Limitations}
 
