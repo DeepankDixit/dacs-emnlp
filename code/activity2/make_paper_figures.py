@@ -131,9 +131,9 @@ sq_c2_x = fmt_positions[FORMATS.index("int8_sq")] + 1 * bar_width
 ax.annotate(
     f"$\\Delta = {delta:+.2f}$ pp",
     xy=(sq_c2_x, sq_c2),
-    xytext=(sq_c2_x + 0.05, sq_c2 - 6),
+    xytext=(sq_c2_x - 0.05, 60.8),
     fontsize=8.5, color="#E05C34", fontweight="bold",
-    ha="left",
+    ha="center", va="center",
     arrowprops=dict(arrowstyle="->", color="#E05C34", lw=1.0),
 )
 
