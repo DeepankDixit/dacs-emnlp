@@ -47,13 +47,13 @@ SQ_C2_REGRESSION = {
 
 DOMAIN_LABELS = {
     "cyber": "Cybersecurity\n(Llama 3.1 8B)",
-    "med":   "Biomedical\n(Llama-3-Med42-8B)",
+    "med":   "Medical\n(Llama-3-Med42-8B)",
     "code":  "Code\n(CodeLlama-7B)",
 }
 
 DOMAIN_LABELS_SHORT = {
     "cyber": "Cybersecurity",
-    "med":   "Biomedical",
+    "med":   "Medical",
     "code":  "Code",
 }
 
@@ -193,7 +193,7 @@ else:
 # (32 transformer layers × 7 projection types: q/k/v/o + gate/up/down). Each
 # layer contributes one per-layer C2 underestimation gap value (1 − C2 ratio).
 # A box plot per domain shows the *distribution* of gaps — the strong claim
-# that "cyber underestimates by ≈ 0.21 across the architecture" is supported
+# that "cyber underestimates consistently across the architecture" is supported
 # by 224 data points per box, not by averaging 224 into a single number.
 #
 # We additionally compute and annotate:
@@ -279,7 +279,7 @@ if all(d in data for d in ["cyber", "med", "code"]):
     ax.spines["right"].set_visible(False)
 
     ax.set_title(
-        "Fig. 6: Per-layer C2 underestimation gap by domain\n"
+        "Per-layer C2 underestimation gap by domain\n"
         "(n = 224 SmoothQuant-targeted layers per box)",
         fontsize=9, fontweight="bold", pad=8
     )
@@ -287,10 +287,9 @@ if all(d in data for d in ["cyber", "med", "code"]):
     # Footer note in axis whitespace
     fig.text(0.5, -0.06,
              "Per-layer distributions are cleanly separated between domains; "
-             "the cyber median ($\\approx$0.21) is\n"
-             "$>$5$\\times$ the medical/code medians, mirroring the rank order of the SQ C2 MMLU "
-             "regressions\nshown above each box. The per-layer evidence demonstrates the gap is a "
-             "consistent property\nof the calibration mismatch, not driven by outlier layers.",
+             "the cyber median (0.153) is\n"
+             "$>$10$\\times$ the medical median (0.015) and $>$20$\\times$ the code median (0.007),\n"
+             "mirroring the rank order of the SQ C2 MMLU regressions shown above each box.",
              ha="center", va="top", fontsize=7.5, color="#444444")
 
     plt.tight_layout()
