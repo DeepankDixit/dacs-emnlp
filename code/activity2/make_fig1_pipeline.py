@@ -54,9 +54,9 @@ RIGHT_EDGE   = "#5D8A2A"
 ARROW_COLOR  = "#555555"
 TEXT_COLOR   = "#222222"
 
-fig, ax = plt.subplots(figsize=(14, 5.2))
+fig, ax = plt.subplots(figsize=(14, 5.6))
 ax.set_xlim(0, 14)
-ax.set_ylim(0, 5.2)
+ax.set_ylim(0, 5.6)
 ax.axis("off")
 ax.set_facecolor("white")
 
@@ -143,10 +143,10 @@ for (cal, fmt), val in cells.items():
             fontsize=10, fontweight="bold" if is_anomaly else "normal",
             color=HIGHLIGHT_EDGE if is_anomaly else TEXT_COLOR)
 
-# Annotate the anomaly (positioned above the matrix to avoid overlap)
+# Annotate the anomaly (positioned above the matrix title to avoid overlap)
 ax.annotate(
-    "Self-cal failure\n(−9.08 pp)",
-    xy=(10.25, 3.25), xytext=(10.4, 5.0),
+    "Self-cal failure (−9.08 pp)",
+    xy=(10.25, 3.25), xytext=(10.4, 5.4),
     fontsize=7.5, color=HIGHLIGHT_EDGE, fontweight="bold",
     ha="center",
     arrowprops=dict(arrowstyle="->", color=HIGHLIGHT_EDGE, lw=0.9),

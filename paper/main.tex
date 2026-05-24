@@ -753,9 +753,10 @@ evaluation-sampling noise but not (a) variance across alternative
 self-generated, WikiText-2, or \dacs{} sub-samples or (b) sensitivity
 to $\alpha$.  The mechanism-level evidence (per-layer
 underestimation gap distributions over $n=224$ SmoothQuant-targeted
-modules per domain, with non-overlapping cyber / medical / code
-IQRs) provides architectural rather than statistical bounds on the
-central failure mode, but a multi-seed and $\alpha$-swept replication
+modules per domain, with the cyber IQR fully disjoint from both
+medical and code IQRs and cyber's lower quartile exceeding the
+medical and code upper quartiles) provides architectural rather than
+statistical bounds on the central failure mode, but a multi-seed and $\alpha$-swept replication
 of the SQ\,C2 cell is deferred to revision work.
 \end{sloppypar}
 
