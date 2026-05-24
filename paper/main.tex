@@ -659,9 +659,11 @@ scores.
 \end{table}
 
 Table~\ref{tab:code} replicates all three findings.  FP8 is perfectly
-calibration-invariant (0.00\,pp spread).  AWQ shows mild positive
-sensitivity: C3 domain calibration yields $+$1.03\,pp over C1, slightly
-larger than in the cybersecurity (0.30\,pp) and medical (0.70\,pp) domains.
+calibration-invariant (0.00\,pp spread).  AWQ shows a small calibration
+spread (1.03\,pp on code, slightly larger than 0.30\,pp on cybersecurity
+and 0.70\,pp on medical), with C3 yielding the highest score on code
+($+$1.03\,pp over C1); on cyber the C3 effect is $+$0.22\,pp and on
+medical it is $-$0.66\,pp (within the Wilson 95\% half-width).
 SQ INT8 again shows the largest spread (1.80\,pp), driven by the C2
 regression ($-$1.80\,pp).  The SQ C2 magnitude is smaller than in
 cybersecurity ($-$9.08\,pp) and medical ($-$2.41\,pp), consistent with code
