@@ -646,7 +646,7 @@ scores.
   & C3 \dacs{}  & \textbf{37.51} & $+$1.03 \\
 \midrule
 \multirow{3}{*}{SQ INT8}
-  & C1 Generic  & 36.54 & -- \\
+  & C1 Generic  & \textbf{36.54} & -- \\
   & C2 Self-gen & 34.74 & $-$1.80 \\
   & C3 \dacs{}  & 35.06 & $-$1.48 \\
 \midrule
@@ -694,9 +694,11 @@ sensitive.}
 For these three checkpoints in the 7--8B size band on A10-class
 hardware: if hardware supports FP8 natively, calibration-data choice
 is empirically immaterial (Tables 1--3 show 0.00\,pp spread on every
-domain).  For AWQ INT4, domain calibration shows sub-CI-half-width
-deltas (0.22--0.55\,pp) and is statistically indistinguishable from
-generic in this study.  For SmoothQuant INT8, calibration is
+domain).  For AWQ INT4, C3-vs-C1 deltas on the in-domain benchmarks
+are small (cyber $+$0.22/$+$0.55, medical $-$0.66/$+$1.80, code
+$+$1.03\,pp); only the code MMLU $+$1.03 marginally exceeds the
+$\pm$0.80\,pp Wilson half-width, so domain calibration is broadly
+indistinguishable from generic in this study.  For SmoothQuant INT8, calibration is
 deployment-critical: any corpus that underestimates inference-time
 activation ranges degrades MMLU proportionally to the gap.
 Self-generated text from a domain fine-tuned model is the
