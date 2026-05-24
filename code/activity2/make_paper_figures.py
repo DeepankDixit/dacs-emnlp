@@ -192,7 +192,11 @@ for ax, (tag, label, _) in zip(axes, domains):
                error_kw=dict(ecolor="#333333", lw=0.6),
                edgecolor="white", linewidth=0.4)
         for x, y in zip(xs, ys):
-            ax.text(x, y + 0.6, f"{y:.1f}", ha="center", fontsize=6.5, color="#333333")
+            # Offset bar value labels by 1.4 pp so they sit clear of the
+            # dashed FP16 baseline line (which lies just above the FP8 bars
+            # for cyber/medical and just below them for code).
+            label_offset = 1.4 if abs(y - FP16_BASELINE_MMLU[tag]) < 2.5 else 0.6
+            ax.text(x, y + label_offset, f"{y:.1f}", ha="center", fontsize=6.5, color="#333333")
 
     # Per-format spread (below x-axis in axes-fraction coords)
     for i_f, fmt in enumerate(FORMATS):

@@ -137,11 +137,13 @@ $T=0.8$); and \emph{C3} domain-aligned, which we refer to as \dacs{}
 throughout for brevity.  Each of the nine resulting quantized models is
 evaluated on \wmdp{} and MMLU using a shared logit-based MCQ scorer.
 
-\paragraph{Contributions.}  Our contributions are deliberately scoped to
+\paragraph{Contributions.}
+\begin{sloppypar}
+Our contributions are deliberately scoped to
 \emph{characterization}, not method proposal:
 (1) a cross-format sensitivity map (AWQ INT4 / SmoothQuant INT8 / FP8
 $\times$ C1/C2/C3) on a domain fine-tuned LLM, replicated across three
-domains for 27 total configurations;
+domains (27 evaluation cells);
 (2) identification and mechanistic explanation of a SmoothQuant
 self-calibration failure mode on fine-tuned models (9.08\,pp MMLU
 regression on cybersecurity), attributed to per-channel activation
@@ -158,6 +160,7 @@ generic calibration: the data contradicts that for SmoothQuant on
 MMLU.  We situate this work against concurrent method-proposal work
 (\S\ref{sec:related}) including MixCal \citep{mixcal2026} and
 per-task mixed-precision allocation \citep{levi2026pertask}.
+\end{sloppypar}
 
 % ============================================================
 \section{Related Work}
@@ -380,11 +383,14 @@ Table~\ref{tab:main} presents accuracy for all nine quantized variants.
 \end{tabular}
 \end{table*}
 
-The MMLU spread per format orders sharply: FP8 0.00\,pp (calibration-
-invariant), AWQ INT4 0.30\,pp (within one Wilson CI half-width at
-$n=14{,}042$), SmoothQuant INT8 9.08\,pp (over $11\times$ the
-$\pm$0.80\,pp Wilson half-width), dominated by the C2 regression
+\begin{sloppypar}
+The MMLU spread per format orders sharply: FP8 0.00\,pp
+(calibration-invariant), AWQ INT4 0.30\,pp (within one Wilson CI
+half-width at $n=14{,}042$), SmoothQuant INT8 9.08\,pp (over
+$11\times$ the $\pm$0.80\,pp Wilson half-width), dominated by the
+C2 regression
 shown in Figure~\ref{fig:sensitivity}.
+\end{sloppypar}
 
 \begin{figure*}[t]
 \centering
@@ -610,8 +616,10 @@ than our PubMedQA-based C3 corpus), a nuance that reinforces the
 complexity of calibration-data selection and strengthens the case for
 cross-format sensitivity maps over single-method recommendations.
 
+\begin{sloppypar}
 A side-by-side three-domain visualisation of MMLU accuracy is
 provided in Appendix~\ref{app:pipeline}, Fig.~\ref{fig:crossdomain}.
+\end{sloppypar}
 
 \paragraph{Code domain (CodeLlama-7B-Instruct).}
 The 3$\times$3 grid is reproduced on CodeLlama; absolute MMLU is
@@ -914,20 +922,23 @@ are systematically too small.
 \end{itemize}
 
 \paragraph{Per-layer distribution.}
-Figure~\ref{fig:gap_per_layer} shows the per-layer C2 underestimation
-gap distribution per domain.  Each domain contributes $n = 224$
-independent SmoothQuant-targeted linear modules (32 transformer
-layers $\times$ 7 projection types).  The cyber median gap is
-$0.153$ (IQR\,$[0.131, 0.268]$), more than $10\times$ the medical
-median ($0.015$; IQR\,$[-0.006, 0.035]$) and $20\times$ the code
-median ($0.007$; IQR\,$[-0.001, 0.056]$).  Cyber's lower quartile
-alone exceeds the medical and code upper quartiles.  The rank
+\begin{sloppypar}
+Figure~\ref{fig:gap_per_layer} shows the per-layer C2
+underestimation gap distribution per domain.  Each domain
+contributes $n = 224$ independent SmoothQuant-targeted linear
+modules (32 transformer layers $\times$ 7 projection types).  The
+cyber median gap is $0.153$ (IQR $[0.131, 0.268]$), more than
+$10\times$ the medical median ($0.015$; IQR $[-0.006, 0.035]$) and
+$20\times$ the code median ($0.007$; IQR $[-0.001, 0.056]$).
+Cyber's lower quartile alone exceeds the medical and code upper
+quartiles.  The rank
 ordering of per-layer distributions exactly matches the rank
 ordering of SQ\,C2 MMLU regressions ($9.08 / 2.41 / 1.80$\,pp),
 providing distribution-level (rather than $n=3$ aggregate) evidence
 that the underestimation is a consistent architectural property of
 the calibration mismatch rather than an aggregate driven by a few
 outlier layers.
+\end{sloppypar}
 
 \begin{figure}[h]
 \centering
@@ -953,13 +964,15 @@ anonymised repository at
 \label{app:c3}
 
 \paragraph{Reproducibility notes.}
-Hyperparameters (rank, epochs, batch size, learning rate; SmoothQuant
-$\alpha$, AWQ scaling configuration, FP8 E4M3 with ModelOpt defaults)
-were fixed at reference values without any sweep.  All package and
-environment versions are pinned in the released
+\begin{sloppypar}
+Hyperparameters (rank, epochs, batch size, learning rate;
+SmoothQuant $\alpha$, AWQ scaling configuration, FP8 E4M3 with
+ModelOpt defaults) were fixed at reference values without any sweep.
+All package and environment versions are pinned in the released
 \path{setup_lambda.sh} script (key versions: torch 2.6.0+cu124,
-\path{nvidia-modelopt} 0.42.0, \path{autoawq} 0.2.9,
-\path{transformers} 5.5.0, \path{lm-eval} 0.4.11).
+nvidia-modelopt 0.42.0, autoawq 0.2.9, transformers 5.5.0, lm-eval
+0.4.11).
+\end{sloppypar}
 
 
 \begin{sloppypar}
