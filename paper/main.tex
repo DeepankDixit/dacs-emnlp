@@ -12,7 +12,7 @@
 \usepackage{tabularx}
 
 % Convenience commands
-\newcommand{\dacs}{\textsc{Dacs}}
+\newcommand{\dacs}{DACS}
 \newcommand{\wmdp}{WMDP-Cyber}
 \newcommand{\llama}{Llama~3.1~8B~Instruct}
 
@@ -538,7 +538,11 @@ MMLU 60.70\,\%) and on CodeLlama-7B-Instruct
 protocols match \S\ref{sec:method}; C3 corpus composition for each
 domain is documented in Appendix~\ref{app:c3}.  MedQA is evaluated
 on a 500-question random subsample ($n=500$, Wilson 95\,\%
-half-width $\pm$4.34\,pp).
+half-width $\pm$4.34\,pp). MedQA evaluation uses the public
+\texttt{GBaker/MedQA-USMLE-4-options} test split (with the
+500-question sample drawn under fixed seed 42); the medical C3
+corpus is drawn only from the disjoint train split, so no question
+overlap between C3 and the MedQA evaluation sample is possible.
 \end{sloppypar}
 
 \begin{table*}[t]
@@ -800,7 +804,14 @@ PubMedQA, MedQA-USMLE, and CodeAlpaca under their respective
 open-source releases).  No calibration corpus contains personally
 identifying information; the WMDP hazardous-knowledge content is
 used only for capability-retention evaluation, not for training
-data.  Quantization broadly improves the accessibility of LLM
+data.  We note that calibration choice empirically affects how
+reliably hazardous-knowledge benchmarks survive post-training
+quantization, which is relevant to downstream unlearning-evaluation
+work; our paper does not perform unlearning and reports retention
+only as a deployment quality metric.  The CodeAlpaca-derived code
+C3 corpus inherits a non-commercial licence (CC-BY-NC-4.0); the
+practitioner guidance in \S\ref{sec:discussion} should not be
+interpreted as licensing that corpus for commercial use.  Quantization broadly improves the accessibility of LLM
 inference by reducing memory and compute requirements; the
 calibration-sensitivity characterization we provide is intended to
 help practitioners deploy quantized domain models reliably.
@@ -998,19 +1009,20 @@ enumerates per-domain sources, mixture, and licenses.
 \textbf{Domain} & \textbf{Source(s)} & \textbf{License} \\
 \midrule
 Cyber &
-512 assistant-turn responses from the public Trendyol cybersecurity
-instruction-tuning dataset (same public corpus as the 83K
-fine-tuning split). &
+512 assistant-turn responses from the public Trendyol
+cybersecurity instruction-tuning dataset on HuggingFace, the same
+public corpus as the 83K fine-tuning split. &
 Apache-2.0 \\
 \midrule
 Medical &
-PubMedQA \texttt{pqa\_labeled} long-answer passages plus
-MedQA-USMLE-4-options train-split explanations, interleaved 1:1. &
+PubMedQA (\path{pqa_labeled} long-answer passages) plus MedQA-USMLE
+4-options train-split explanations, interleaved 1:1.  Evaluation
+uses the disjoint MedQA test split. &
 PubMedQA MIT, MedQA MIT \\
 \midrule
 Code &
 CodeAlpaca-20k Python-heavy assistant outputs, length-filtered. &
-CC-BY-NC-4.0 \\
+CC-BY-NC-4.0 (NC) \\
 \bottomrule
 \end{tabular}
 \end{table}
