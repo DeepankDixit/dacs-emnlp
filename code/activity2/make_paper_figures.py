@@ -106,7 +106,7 @@ for i_c, calib in enumerate(["c1", "c2", "c3"]):
            yerr=WILSON_MMLU,
            capsize=3,
            error_kw=dict(ecolor="#333333", lw=0.7),
-           label=f"{calib.upper()} {CALIB_LABELS[calib].replace(chr(10), ' ')}",
+           label=CALIB_LABELS[calib].replace(chr(10), ' '),
            edgecolor="white", linewidth=0.5)
 
 # Value labels on bars (offset enough to clear FP16 dashed line at 63.5)
