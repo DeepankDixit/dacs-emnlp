@@ -264,4 +264,8 @@ This work is released under the MIT License; see [LICENSE](LICENSE).
 The released calibration corpora retain their upstream dataset licenses
 (WikiText-2: CC BY-SA 3.0; Trendyol cybersecurity instruction dataset:
 Apache-2.0; PubMedQA: MIT; MedQA-USMLE: MIT; CodeAlpaca-20k:
-CC-BY-NC-4.0, research use).
+CC-BY-NC-4.0). Note: the code-domain C3 calibration JSONL
+(`outputs/code_c3_calib_512.jsonl`) is derived from CodeAlpaca-20k
+and therefore inherits the CC-BY-NC-4.0 (Non-Commercial) restriction;
+downstream users should respect that clause for any code-domain
+calibration use.

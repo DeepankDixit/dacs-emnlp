@@ -48,8 +48,8 @@ a 3$\times$3 sensitivity grid replicated on three differently fine-tuned checkpo
 Three findings emerge.  \emph{First}, calibration sensitivity is sharply
 format-dependent: the max calibration spread on MMLU is 0.00\,pp for FP8,
 up to 1.03\,pp for AWQ INT4, and up to 9.08\,pp for SmoothQuant INT8;
-recommending a single ``best'' calibration strategy without conditioning on
-the quantization format is unsafe.  \emph{Second}, self-generated
+in this 7--8B regime, recommending a single ``best'' calibration
+strategy without conditioning on the quantization format is unsafe.  \emph{Second}, self-generated
 calibration, previously shown to be competitive on base models
 \citep{williams2025selfcalib}, causes a substantial MMLU regression under
 SmoothQuant on every domain tested (9.08\,pp on cybersecurity, 2.41\,pp on
@@ -243,10 +243,11 @@ fine-tuning on 83K cybersecurity instruction examples (rank-16 LoRA
 adapters over $q,k,v,o,\text{gate},\text{up},\text{down}$ projections,
 2 epochs, batch size 8, learning rate $2\times10^{-4}$).  The FP16
 fine-tuned model achieves approximately 44--46\% on \wmdp{} and
-63--65\% on MMLU, establishing our quality ceiling.  All experiments run on a single A10 GPU (24\,GB); end-to-end
-reproduction of the full 27-cell evaluation grid from base checkpoints
-costs approximately \$50 of cloud compute (${\sim}1$ GPU-day) at
-current rates.  All subsequent quantization is applied to this fine-tuned
+63--65\% on MMLU, establishing our quality ceiling.  All experiments
+run on a single A10 GPU (24\,GB); end-to-end reproduction of the
+full 27-cell evaluation grid from base checkpoints costs
+approximately \$50 of cloud compute (${\sim}1$ GPU-day) at current
+rates.  All subsequent quantization is applied to this fine-tuned
 checkpoint.
 
 \subsection{Quantization Formats}
@@ -305,10 +306,10 @@ checkpoint, which is the regime we test.
 For each domain, C3 is a 512-passage instruction-text corpus drawn
 from the public dataset most closely matching the model's
 fine-tuning distribution (Appendix~\ref{app:c3} for per-domain
-sources, mixture, and licenses).  We use \dacs{} as a convenient
-label for this condition; we do \emph{not} claim it is a novel
-method, it is the domain-aligned control condition that defines our
-C1/C2/C3 contrast.
+sources, mixture, and licenses; see Limitations for a cross-domain
+comparability note).  We use \dacs{} as a convenient label for this
+condition; we do \emph{not} claim it is a novel method, it is the
+domain-aligned control condition that defines our C1/C2/C3 contrast.
 \end{sloppypar}
 
 \subsection{Evaluation Protocol}
@@ -690,9 +691,7 @@ Self-generated text from a domain fine-tuned model is the
 highest-risk option (specialisation narrows the activation
 distribution by construction); generic WikiText-2 is safer and
 better for MMLU retention than domain corpora because its breadth
-matches the evaluation distribution.  These observations should not
-be extrapolated to larger model sizes or non-English fine-tuning
-distributions without further study.
+matches the evaluation distribution.
 
 \paragraph{Boundary condition for self-calibration.}
 The failure requires three conditions to coincide: a domain
@@ -752,7 +751,16 @@ central failure mode, but a multi-seed and $\alpha$-swept replication
 of the SQ\,C2 cell is deferred to revision work.
 \end{sloppypar}
 
-The 512-token sequence-length cap may underrepresent long-context
+The C3 row is not strictly comparable across the three domains:
+cyber C3 is disjointly sampled from the same upstream Trendyol corpus
+as the QLoRA fine-tuning split (strongest possible domain-alignment),
+while medical and code C3 are sampled from public instruction corpora
+whose actual overlap with Med42 / CodeLlama fine-tuning data is
+unknown to us.  We also did not perform an exhaustive contamination
+probe between the Trendyol fine-tuning corpus and MMLU subjects; the
+two corpora are disjoint by source (cybersecurity Q\&A vs.
+multi-subject academic exams) with no known overlap reported in
+their respective public releases.  The 512-token sequence-length cap may underrepresent long-context
 calibration patterns.  MedQA results ($n=500$) carry a Wilson 95\,\%
 half-width of $\pm$4.34\,pp, so MedQA deltas below that threshold
 should be read as descriptive rather than inferential.  All accuracy
@@ -943,6 +951,16 @@ anonymised repository at
 
 \subsection{C3 (\dacs{}) Calibration Corpus Composition}
 \label{app:c3}
+
+\paragraph{Reproducibility notes.}
+Hyperparameters (rank, epochs, batch size, learning rate; SmoothQuant
+$\alpha$, AWQ scaling configuration, FP8 E4M3 with ModelOpt defaults)
+were fixed at reference values without any sweep.  All package and
+environment versions are pinned in the released
+\path{setup_lambda.sh} script (key versions: torch 2.6.0+cu124,
+\path{nvidia-modelopt} 0.42.0, \path{autoawq} 0.2.9,
+\path{transformers} 5.5.0, \path{lm-eval} 0.4.11).
+
 
 \begin{sloppypar}
 C3 corpora for all three domains are released as JSONL in the
