@@ -468,9 +468,7 @@ SQ\,C2 on MMLU).  This contradicts a naive ``domain data is always
 better'' intuition: WikiText-2's encyclopaedic breadth produces
 per-channel activation maxima that cover MMLU better than a
 narrower cyber+academic corpus, while \dacs{}'s tighter distribution
-matches cyber-flavoured activations more faithfully:
-diversity-weighted hybrid calibration is a natural method-paper
-follow-up that we leave out of scope.
+matches cyber-flavoured activations more faithfully.
 
 % ============================================================
 \subsection{Mechanistic Validation: Activation Range Analysis}
@@ -494,7 +492,7 @@ and domain.  The pattern is decisive: WikiText-2 (C1)
 (ratios $1.052$--$1.055$), while self-generated calibration (C2)
 systematically \emph{undershoots}, most catastrophically on cyber
 (ratio $0.788$, gap $0.212$, $100\,\%$ of layers below 1.0), less so
-on medical ($0.966$, $61.6\,\%$) and code ($0.971$, $71.9\,\%$).
+on medical ($0.965$, $61.6\,\%$) and code ($0.971$, $71.9\,\%$).
 Domain calibration (C3) closely matches inference for cyber and
 medical (ratios $1.008$, $1.011$) but also undershoots for code
 ($0.941$): Python function text is syntactically narrow enough that
@@ -914,7 +912,7 @@ are systematically too small.
 \item \textbf{C2 (self-generated) undershoots in all three domains,
   with magnitudes that scale with the narrowness of the fine-tuning
   distribution:}  cyber C2 mean ratio $= 0.788$ ($100\,\%$ of layers
-  below 1.0), medical C2 $= 0.966$ ($61.6\,\%$), code C2 $= 0.971$
+  below 1.0), medical C2 $= 0.965$ ($61.6\,\%$), code C2 $= 0.971$
   ($71.9\,\%$).  The cyber C2 ratio is the most extreme
   calibration-vs-inference mismatch we observe.
 \item \textbf{C3 fidelity is domain-dependent:}  For cybersecurity

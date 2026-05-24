@@ -174,12 +174,8 @@ else:
                fontsize=8, bbox_to_anchor=(0.5, -0.04),
                frameon=True, edgecolor="#CCCCCC")
 
-    fig.suptitle(
-        "Fig. 5: Per-channel input activation range under each calibration condition\n"
-        "relative to MMLU inference. C2 underestimates in all domains; C3 ≈ MMLU for cyber/med,\n"
-        "but also underestimates for code (code text is too syntactically narrow to cover MMLU range).",
-        fontsize=8.5, y=1.03
-    )
+    # No matplotlib suptitle — the LaTeX figure caption labels and describes this figure
+    # (avoids "Fig. 5" hardcoded title conflicting with the LaTeX-assigned figure number).
     plt.tight_layout(rect=[0, 0.08, 1, 1])
     out5 = os.path.join(OUT_DIR, "fig5_activation_ranges.pdf")
     plt.savefig(out5, bbox_inches="tight", dpi=200)
